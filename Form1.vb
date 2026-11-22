@@ -71,6 +71,8 @@ Public Class Form1
         SubtitlePipeline.OcrFactory = AddressOf WindowsOcr.Create
 
         _loadingUi = True
+        cmbMode.Items.AddRange(New Object() {Loc.Tr("Translate subtitles"), Loc.Tr("Only sync subtitle timing to the video (no translation)")})
+        cmbMode.SelectedIndex = If(_settings.JobMode = "sync", 1, 0)
         cmbSource.Items.Add(Loc.Tr("Auto-detect"))
         For Each l In Languages.All
             cmbSource.Items.Add(l)
@@ -95,6 +97,8 @@ Public Class Form1
         toolTip.SetToolTip(cmbModel, Loc.Tr("Google TranslateGemma, running locally with llama.cpp.") & vbCrLf & Loc.Tr("Automatic chooses the size that fits your graphics card.") & vbCrLf & Loc.Tr("✓ = already downloaded"))
         toolTip.SetToolTip(cmbSubSource, Loc.Tr("Embedded: use subtitles inside the video (text, or image subtitles read with OCR).") & vbCrLf &
                                          Loc.Tr("Audio: always create the subtitles from the speech with Whisper."))
+        toolTip.SetToolTip(cmbMode, Loc.Tr("Only sync: add subtitle files (or the videos next to them) – their timing is matched to the speech of the video. Nothing is translated.") & vbCrLf &
+                                    Loc.Tr("With 'Replace original subtitle file' ticked the file itself is corrected, otherwise a copy Movie.en.synced.srt is written."))
         toolTip.SetToolTip(btnTargets, Loc.Tr("Choose one or more languages – one subtitle file is created per language."))
         toolTip.SetToolTip(cmbVideoOut, Loc.Tr("MKV: the new subtitles are added to a copy of the video as extra tracks (fast, no quality loss).") & vbCrLf &
                                         Loc.Tr("Burned-in: an MP4 copy with the subtitles drawn on the picture (first language; takes longer)."))
@@ -474,6 +478,17 @@ Public Class Form1
         End If
     End Sub
 
+    Private Function SyncOnlyMode() As Boolean
+        Return _settings IsNot Nothing AndAlso _settings.JobMode = "sync"
+    End Function
+
+    Private Sub cmbMode_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cmbMode.SelectedIndexChanged
+        If _loadingUi OrElse _settings Is Nothing Then Return
+        _settings.JobMode = If(cmbMode.SelectedIndex = 1, "sync", "translate")
+        _settings.Save()
+        UpdateUiState()
+    End Sub
+
     Private Sub UpdateUiState()
         Dim busy = _cts IsNot Nothing
         btnStart.Enabled = Not busy AndAlso Tasks.Count > 0
@@ -481,7 +496,16 @@ Public Class Form1
         For Each c As Control In New Control() {btnAddFiles, btnAddFolder, btnRemove, btnClear, btnComponents, btnUpdate, cmbSource, btnTargets, cmbModel, cmbSubSource, chkOverwrite, cmbVideoOut}
             c.Enabled = Not busy
         Next
-        chkReplaceOriginal.Enabled = Not busy AndAlso _settings IsNot Nothing AndAlso _settings.TargetLanguages.Count = 1
+        Dim syncOnly = SyncOnlyMode()
+        cmbMode.Enabled = Not busy
+        ' settings that only matter for translating
+        For Each c As Control In New Control() {cmbSource, btnTargets, cmbModel, cmbSubSource, chkOverwrite, cmbVideoOut}
+            c.Enabled = Not busy AndAlso Not syncOnly
+        Next
+        For Each c As Control In New Control() {lblSource, lblTarget, lblModel, lblSubSource, lblVideoOut}
+            c.Enabled = Not syncOnly
+        Next
+        chkReplaceOriginal.Enabled = Not busy AndAlso _settings IsNot Nothing AndAlso (syncOnly OrElse _settings.TargetLanguages.Count = 1)
         lblDropHint.Visible = Tasks.Count = 0
         If lblDropHint.Visible Then lblDropHint.BringToFront()
     End Sub
@@ -544,12 +568,14 @@ Public Class Form1
     Private Async Sub btnStart_Click(sender As Object, e As EventArgs) Handles btnStart.Click
         If Tasks.Count = 0 OrElse _cts IsNot Nothing Then Return
 
+        Dim syncOnly = SyncOnlyMode()
         Dim missing = DependencyManager.MissingRequired(_settings)
+        If syncOnly Then missing = missing.Where(Function(c) TypeOf c Is FfmpegComponent).ToList() ' only FFmpeg is needed
         If missing.Count > 0 Then
             If MessageBox.Show(Me, Loc.Tr("Missing components:") & vbCrLf & String.Join(vbCrLf, missing.Select(Function(c) "  • " & c.DisplayName)) &
                                vbCrLf & vbCrLf & Loc.Tr("Download them now?"), "Subtitle Machine", MessageBoxButtons.YesNo, MessageBoxIcon.Question) <> DialogResult.Yes Then Return
             ShowComponents(autoInstall:=True)
-            If DependencyManager.MissingRequired(_settings).Count > 0 Then Return
+            If DependencyManager.MissingRequired(_settings).Any(Function(c) Not syncOnly OrElse TypeOf c Is FfmpegComponent) Then Return
         End If
 
         _cts = New CancellationTokenSource()
@@ -569,13 +595,13 @@ Public Class Form1
         End If
 
         Try
-            _translator = New LlamaTranslator(_settings)
+            If Not syncOnly Then _translator = New LlamaTranslator(_settings)
             Dim prep As New Progress(Of StatusUpdate)(Sub(s)
                                                           lblStatus.Text = s.Text
                                                           progressBar.Style = If(s.Percent >= 0, ProgressBarStyle.Continuous, ProgressBarStyle.Marquee)
                                                           If s.Percent >= 0 Then progressBar.Value = Math.Min(100, s.Percent)
                                                       End Sub)
-            Await _translator.PrepareAsync(prep, ct) ' loads the AI model
+            If Not syncOnly Then Await _translator.PrepareAsync(prep, ct) ' loads the AI model
             progressBar.Style = ProgressBarStyle.Continuous
 
             Dim pipeline As New SubtitlePipeline(_settings, _translator)
@@ -599,7 +625,11 @@ Public Class Form1
                                     End Sub)
                     End Sub
                 Try
-                    Await Task.Run(Function() pipeline.ProcessAsync(item, report, ct), ct)
+                    If syncOnly Then
+                        Await Task.Run(Function() pipeline.SyncOnlyAsync(item, report, ct), ct)
+                    Else
+                        Await Task.Run(Function() pipeline.ProcessAsync(item, report, ct), ct)
+                    End If
                 Catch ex As OperationCanceledException
                     item.State = TaskState.Cancelled
                     item.Status = Tr("Cancelled")

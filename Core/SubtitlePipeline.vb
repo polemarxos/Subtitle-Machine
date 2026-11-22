@@ -94,7 +94,7 @@ Public Class SubtitlePipeline
         Dim videoShare = If(wantsVideo, 0.3, 0.0) ' part of the progress bar used by MKV / burn-in
 
         ' 2) One output per target language.
-        Dim translateFrom = If(source.Path = item.FilePath, 0.0, 0.4) * (1 - videoShare)
+        Dim translateFrom = If(source.Path <> item.FilePath, 0.4, If(translateInput <> source.Path, 0.1, 0.0)) * (1 - videoShare)
         Dim translateEnd = 1 - videoShare
         For ti = 0 To _targets.Count - 1
             ct.ThrowIfCancellationRequested()
@@ -181,6 +181,82 @@ Public Class SubtitlePipeline
         item.OutputPath = item.Outputs.FirstOrDefault()
         item.State = TaskState.Done
         item.Status = Loc.Tr("Completed") & If(notes.Count > 0, " (" & String.Join(", ", notes) & ")", "")
+    End Function
+
+    ' ------------------------------------------------------------------
+    '  Task "Only sync timing to the video"
+    ' ------------------------------------------------------------------
+
+    ''' <summary>Subtitle files that belong to a video: "Movie.srt", "Movie.en.srt", "Movie.el.forced.srt" … (not our own ".synced" copies).</summary>
+    Public Shared Function SubtitlesForVideo(video As String) As List(Of String)
+        Dim dir = Path.GetDirectoryName(video)
+        Dim stem = Path.GetFileNameWithoutExtension(video)
+        Return Directory.EnumerateFiles(dir, "*.srt").Where(Function(f)
+                                                               Dim s = Path.GetFileNameWithoutExtension(f)
+                                                               Return (s.Equals(stem, StringComparison.OrdinalIgnoreCase) OrElse s.StartsWith(stem & ".", StringComparison.OrdinalIgnoreCase)) AndAlso
+                                                                      Not s.EndsWith(".synced", StringComparison.OrdinalIgnoreCase)
+                                                           End Function).OrderBy(Function(f) f, StringComparer.OrdinalIgnoreCase).ToList()
+    End Function
+
+    ''' <summary>Where a synced file is written: the original itself ("Replace original" ticked) or "Movie.en.synced.srt".</summary>
+    Private Function SyncedOutputPath(srt As String) As String
+        If _s.ReplaceOriginal Then Return srt
+        Return Path.Combine(Path.GetDirectoryName(srt), Path.GetFileNameWithoutExtension(srt) & ".synced.srt")
+    End Function
+
+    ''' <summary>
+    ''' Only fixes the timing: a subtitle file is synced to the video next to it; a video (or audio file) syncs
+    ''' every subtitle file with its name. Nothing is translated and no AI model is loaded.
+    ''' </summary>
+    Public Async Function SyncOnlyAsync(item As TaskItem, report As Action(Of String, Double), ct As CancellationToken) As Task
+        Dim name = Path.GetFileName(item.FilePath)
+        item.Outputs.Clear()
+        Dim isSrt = Path.GetExtension(item.FilePath).Equals(".srt", StringComparison.OrdinalIgnoreCase)
+        Dim media As String
+        Dim subs As List(Of String)
+        If isSrt Then
+            media = SubtitleSync.FindVideoFor(item.FilePath)
+            If media Is Nothing Then Throw New Exception(Loc.Tr("No video with the same name next to this subtitle file."))
+            subs = New List(Of String) From {item.FilePath}
+        Else
+            media = item.FilePath
+            subs = SubtitlesForVideo(media)
+            If subs.Count = 0 Then Throw New Exception(Loc.Tr("No subtitle files with the name of this video next to it."))
+        End If
+
+        Dim streams = Await ProbeStreamsAsync(media, ct)
+        Dim audio = PickAudioStream(streams)
+        If audio Is Nothing Then Throw New Exception(Loc.Tr("The video has no audio track."))
+        Dim duration = Await ProbeDurationAsync(media, ct)
+        report(Loc.Tr("{0}: listening to the audio", name), 0)
+        Dim speech = Await SubtitleSync.DetectSpeechAsync(FfmpegComponent.FfmpegExe, media, audio.SubIndex, ct,
+                                                          Sub(f) report(Loc.Tr("{0}: listening to the audio {1:P0}", name, f), 0.9 * f), duration)
+        Dim notes As New List(Of String)
+        Dim anyChange = False
+        For Each srt In subs
+            ct.ThrowIfCancellationRequested()
+            Dim cues = SrtFile.Load(srt)
+            Dim r = SubtitleSync.FindBest(speech, SubtitleSync.CueTimes(cues))
+            Logger.Log($"Sync only {Path.GetFileName(srt)}: {r.Describe()} confidence {r.Confidence:0.0} → {r.Reason}")
+            Dim label = If(subs.Count > 1, Path.GetFileName(srt) & ": ", "")
+            If r.ShouldApply Then
+                Dim outPath = SyncedOutputPath(srt)
+                SrtFile.Save(outPath, SubtitleSync.Apply(cues, r))
+                item.Outputs.Add(outPath)
+                notes.Add(label & Loc.Tr("timing fixed: {0}", r.Describe()))
+                anyChange = True
+            ElseIf r.Reason = "already in sync" Then
+                notes.Add(label & Loc.Tr("already in sync"))
+            Else
+                notes.Add(label & Loc.Tr("not changed – no clear match with the video"))
+            End If
+        Next
+        report(Loc.Tr("{0}: done", name), 1)
+        item.SourcePath = subs(0)
+        item.OutputPath = If(item.Outputs.FirstOrDefault(), subs(0))
+        If item.Outputs.Count = 0 Then item.Outputs.Add(subs(0)) ' so the editor can open it
+        item.State = TaskState.Done
+        item.Status = If(anyChange, Loc.Tr("Synced"), Loc.Tr("Checked")) & " (" & String.Join("; ", notes) & ")"
     End Function
 
     ' ------------------------------------------------------------------

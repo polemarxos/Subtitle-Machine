@@ -1,6 +1,21 @@
 ''' <summary>Greek interface texts. Key = English text exactly as written in the code (with {0} placeholders).</summary>
 Friend NotInheritable Class GreekStrings
     Public Shared ReadOnly Map As New Dictionary(Of String, String)(StringComparer.Ordinal) From {
+        {"Translate subtitles", "Μετάφραση υποτίτλων"},
+        {"Only sync subtitle timing to the video (no translation)", "Μόνο συγχρονισμός υποτίτλων με το βίντεο (χωρίς μετάφραση)"},
+        {"Only sync: add subtitle files (or the videos next to them) – their timing is matched to the speech of the video. Nothing is translated.", "Μόνο συγχρονισμός: προσθέστε αρχεία υποτίτλων (ή τα βίντεο δίπλα τους) – ο χρονισμός τους προσαρμόζεται στην ομιλία του βίντεο. Τίποτα δεν μεταφράζεται."},
+        {"With 'Replace original subtitle file' ticked the file itself is corrected, otherwise a copy Movie.en.synced.srt is written.", "Με τσεκαρισμένο το «Αντικατάσταση του αρχικού αρχείου υποτίτλων» διορθώνεται το ίδιο το αρχείο, αλλιώς γράφεται αντίγραφο Movie.en.synced.srt."},
+        {"Task", "Εργασία"},
+        {"No video with the same name next to this subtitle file.", "Δεν υπάρχει βίντεο με το ίδιο όνομα δίπλα σε αυτό το αρχείο υποτίτλων."},
+        {"No subtitle files with the name of this video next to it.", "Δεν υπάρχουν αρχεία υποτίτλων με το όνομα αυτού του βίντεο δίπλα του."},
+        {"The video has no audio track.", "Το βίντεο δεν έχει κανάλι ήχου."},
+        {"{0}: listening to the audio", "{0}: ανάλυση του ήχου"},
+        {"{0}: listening to the audio {1:P0}", "{0}: ανάλυση του ήχου {1:P0}"},
+        {"already in sync", "ήδη συγχρονισμένοι"},
+        {"not changed – no clear match with the video", "δεν άλλαξε – καμία σαφής αντιστοιχία με το βίντεο"},
+        {"{0}: done", "{0}: ολοκληρώθηκε"},
+        {"Synced", "Συγχρονίστηκε"},
+        {"Checked", "Ελέγχθηκε"},
         {"Spell check", "Ορθογραφία"},
         {"Next mistake (F7)", "Επόμενο λάθος (F7)"},
         {"Sync to video", "Συγχρονισμός με το βίντεο"},

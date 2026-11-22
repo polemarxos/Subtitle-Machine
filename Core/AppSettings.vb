@@ -34,6 +34,8 @@ Public Class AppSettings
     Public Property RemoveHearingImpaired As Boolean = True
     ''' <summary>Match the timing of subtitle files to the speech of the video next to them.</summary>
     Public Property AutoSyncSubtitles As Boolean = True
+    ''' <summary>"translate" (default) or "sync" (only match the subtitle timing to the video).</summary>
+    Public Property JobMode As String = "translate"
     ''' <summary>Mark spelling mistakes in the subtitle editor.</summary>
     Public Property SpellCheck As Boolean = True
     Public Property FixFormatting As Boolean = True
@@ -50,9 +52,6 @@ Public Class AppSettings
     Public Property VideoOutput As String = "none"
     ''' <summary>Keep the .srt files after adding them into the MKV.</summary>
     Public Property KeepSrtFiles As Boolean = True
-    ''' <summary>After a batch: "nothing", "sleep", "hibernate" or "shutdown".</summary>
-    <Text.Json.Serialization.JsonIgnore>
-    Public Property WhenDone As String = "nothing"
     ''' <summary>"system", "dark" or "light".</summary>
     Public Property Theme As String = "system"
     ''' <summary>Windows notification + sound when a batch finishes.</summary>
@@ -91,6 +90,7 @@ Public Class AppSettings
 
     ''' <summary>Fixes invalid values and migrates settings of older versions.</summary>
     Public Sub Normalize()
+        If JobMode <> "sync" Then JobMode = "translate"
         ' v1.0–1.2 stored one language (sometimes as a name, "Greek").
         If Not String.IsNullOrWhiteSpace(TargetLanguage) Then
             Dim old = Languages.Find(TargetLanguage)
@@ -112,7 +112,6 @@ Public Class AppSettings
         If String.IsNullOrWhiteSpace(WhisperModel) Then WhisperModel = "large-v3-turbo"
         If MaxLineLength < 20 OrElse MaxLineLength > 80 Then MaxLineLength = 42
         If Not {"none", "mkv", "burn", "both"}.Contains(VideoOutput) Then VideoOutput = "none"
-        If Not {"nothing", "sleep", "hibernate", "shutdown"}.Contains(WhenDone) Then WhenDone = "nothing"
         If Not {"system", "dark", "light"}.Contains(Theme) Then Theme = "system"
         If Not {"auto", "en", "el"}.Contains(UiLanguage) Then UiLanguage = "auto"
     End Sub

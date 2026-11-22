@@ -218,10 +218,13 @@ Public Module SubtitleSync
         Fft(sRe, sIm, False)
 
         Dim best As Double = Double.MinValue
+        ' buffers reused for every ratio (they can be tens of MB for a long film)
+        Dim uRe(size - 1) As Double, uIm(size - 1) As Double
+        Dim cRe(size - 1) As Double, cIm(size - 1) As Double
         For Each ratio In Ratios
             Dim u = SubtitleSignal(cues, ratio, len)
             Dim uMean = u.Average()
-            Dim uRe(size - 1) As Double, uIm(size - 1) As Double
+            Array.Clear(uRe) : Array.Clear(uIm)
             Dim uNorm As Double = 0
             For i = 0 To len - 1
                 uRe(i) = u(i) - uMean
@@ -231,7 +234,6 @@ Public Module SubtitleSync
             If uNorm = 0 Then Continue For
             Fft(uRe, uIm, False)
             ' correlation(k) = Σ s(t)·u(t−k)  →  IFFT( S · conj(U) )
-            Dim cRe(size - 1) As Double, cIm(size - 1) As Double
             For i = 0 To size - 1
                 cRe(i) = sRe(i) * uRe(i) + sIm(i) * uIm(i)
                 cIm(i) = sIm(i) * uRe(i) - sRe(i) * uIm(i)

@@ -356,17 +356,11 @@ Public Class ResumeAndSettingsTests
 
     <Fact>
     Public Sub Normalize_NewOptions()
-        Dim s As New AppSettings With {.VideoOutput = "avi", .Theme = "pink", .WhenDone = "reboot"}
+        Dim s As New AppSettings With {.VideoOutput = "avi", .Theme = "pink", .JobMode = "dance"}
         s.Normalize()
         Assert.Equal("none", s.VideoOutput)
         Assert.Equal("system", s.Theme)
-        Assert.Equal("nothing", s.WhenDone)
-    End Sub
-
-    <Fact>
-    Public Sub WhenDone_IsNeverSaved()
-        Dim json = Text.Json.JsonSerializer.Serialize(New AppSettings With {.WhenDone = "shutdown"})
-        Assert.DoesNotContain("""WhenDone""", json)
+        Assert.Equal("translate", s.JobMode)
     End Sub
 
     <Fact>

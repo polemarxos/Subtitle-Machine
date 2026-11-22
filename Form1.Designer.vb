@@ -52,6 +52,8 @@ Partial Class Form1
         btnTargets = New Button()
         lblVideoOut = New Label()
         cmbVideoOut = New ComboBox()
+        lblMode = New Label()
+        cmbMode = New ComboBox()
         lblWhenDone = New Label()
         cmbWhenDone = New ComboBox()
         mnuEdit = New ToolStripMenuItem()
@@ -298,7 +300,7 @@ Partial Class Form1
         pnlOptions.Dock = DockStyle.Bottom
         pnlOptions.Name = "pnlOptions"
         pnlOptions.Padding = New Padding(12, 10, 12, 4)
-        pnlOptions.Size = New Size(900, 176)
+        pnlOptions.Size = New Size(900, 210)
         '
         ' tblOptions
         '
@@ -307,24 +309,27 @@ Partial Class Form1
         tblOptions.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 58.0F))
         tblOptions.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 120.0F))
         tblOptions.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 42.0F))
-        tblOptions.Controls.Add(lblSource, 0, 0)
-        tblOptions.Controls.Add(cmbSource, 1, 0)
-        tblOptions.Controls.Add(lblTarget, 2, 0)
-        tblOptions.Controls.Add(btnTargets, 3, 0)
-        tblOptions.Controls.Add(lblModel, 0, 1)
-        tblOptions.Controls.Add(cmbModel, 1, 1)
-        tblOptions.Controls.Add(lblSubSource, 2, 1)
-        tblOptions.Controls.Add(cmbSubSource, 3, 1)
-        tblOptions.Controls.Add(chkReplaceOriginal, 0, 2)
-        tblOptions.Controls.Add(chkOverwrite, 2, 2)
-        tblOptions.Controls.Add(lblVideoOut, 0, 3)
-        tblOptions.Controls.Add(cmbVideoOut, 1, 3)
-        tblOptions.Controls.Add(lblWhenDone, 2, 3)
-        tblOptions.Controls.Add(cmbWhenDone, 3, 3)
-        tblOptions.Controls.Add(lblGpu, 0, 4)
+        tblOptions.Controls.Add(lblMode, 0, 0)
+        tblOptions.Controls.Add(cmbMode, 1, 0)
+        tblOptions.Controls.Add(lblSource, 0, 1)
+        tblOptions.Controls.Add(cmbSource, 1, 1)
+        tblOptions.Controls.Add(lblTarget, 2, 1)
+        tblOptions.Controls.Add(btnTargets, 3, 1)
+        tblOptions.Controls.Add(lblModel, 0, 2)
+        tblOptions.Controls.Add(cmbModel, 1, 2)
+        tblOptions.Controls.Add(lblSubSource, 2, 2)
+        tblOptions.Controls.Add(cmbSubSource, 3, 2)
+        tblOptions.Controls.Add(chkReplaceOriginal, 0, 3)
+        tblOptions.Controls.Add(chkOverwrite, 2, 3)
+        tblOptions.Controls.Add(lblVideoOut, 0, 4)
+        tblOptions.Controls.Add(cmbVideoOut, 1, 4)
+        tblOptions.Controls.Add(lblWhenDone, 2, 4)
+        tblOptions.Controls.Add(cmbWhenDone, 3, 4)
+        tblOptions.Controls.Add(lblGpu, 0, 5)
         tblOptions.Dock = DockStyle.Fill
         tblOptions.Name = "tblOptions"
-        tblOptions.RowCount = 5
+        tblOptions.RowCount = 6
+        tblOptions.RowStyles.Add(New RowStyle(SizeType.Absolute, 34.0F))
         tblOptions.RowStyles.Add(New RowStyle(SizeType.Absolute, 34.0F))
         tblOptions.RowStyles.Add(New RowStyle(SizeType.Absolute, 34.0F))
         tblOptions.RowStyles.Add(New RowStyle(SizeType.Absolute, 30.0F))
@@ -332,6 +337,7 @@ Partial Class Form1
         tblOptions.RowStyles.Add(New RowStyle(SizeType.Absolute, 26.0F))
         tblOptions.SetColumnSpan(chkReplaceOriginal, 2)
         tblOptions.SetColumnSpan(lblGpu, 4)
+        tblOptions.SetColumnSpan(cmbMode, 3)
         tblOptions.SetColumnSpan(chkOverwrite, 2)
         '
         ' lblSource
@@ -372,6 +378,17 @@ Partial Class Form1
         btnTargets.Text = "Greek"
         btnTargets.TextAlign = ContentAlignment.MiddleLeft
         btnTargets.UseVisualStyleBackColor = False
+        ' 
+        ' lblMode / cmbMode
+        ' 
+        lblMode.Anchor = AnchorStyles.Left
+        lblMode.AutoSize = True
+        lblMode.Name = "lblMode"
+        lblMode.Text = "Task"
+        cmbMode.Anchor = AnchorStyles.Left Or AnchorStyles.Right
+        cmbMode.DropDownStyle = ComboBoxStyle.DropDownList
+        cmbMode.FlatStyle = FlatStyle.Flat
+        cmbMode.Name = "cmbMode"
         ' 
         ' lblVideoOut / cmbVideoOut / lblWhenDone / cmbWhenDone
         ' 
@@ -519,7 +536,7 @@ Partial Class Form1
         AutoScaleDimensions = New SizeF(7.0F, 15.0F)
         AutoScaleMode = AutoScaleMode.Font
         BackColor = Color.FromArgb(CByte(30), CByte(30), CByte(30))
-        ClientSize = New Size(940, 680)
+        ClientSize = New Size(940, 714)
         ' Dock order: Fill first, then bottom panels, then top panels (last added = outermost).
         Controls.Add(pnlList)
         Controls.Add(pnlOptions)
@@ -530,7 +547,7 @@ Partial Class Form1
         Font = New Font("Segoe UI", 9.0F, FontStyle.Regular, GraphicsUnit.Point, CByte(0))
         ForeColor = Color.White
         Icon = CType(resources.GetObject("$this.Icon"), Icon)
-        MinimumSize = New Size(840, 640)
+        MinimumSize = New Size(840, 674)
         Name = "Form1"
         StartPosition = FormStartPosition.CenterScreen
         Text = "Subtitle Machine"
@@ -580,6 +597,8 @@ Partial Class Form1
     Friend WithEvents btnTargets As Button
     Friend WithEvents lblVideoOut As Label
     Friend WithEvents cmbVideoOut As ComboBox
+    Friend WithEvents lblMode As Label
+    Friend WithEvents cmbMode As ComboBox
     Friend WithEvents lblWhenDone As Label
     Friend WithEvents cmbWhenDone As ComboBox
     Friend WithEvents mnuEdit As ToolStripMenuItem
