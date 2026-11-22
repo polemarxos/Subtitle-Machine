@@ -256,26 +256,41 @@ Public Class Form1
     End Sub
 
     ''' <summary>Checks GitHub; downloads a newer version in the background. It is installed when the app closes (or on "Restart now").</summary>
+    ''' <summary>The update check / download that is running (started at startup or by the button); both share it.</summary>
+    Private _updateTask As Task(Of Boolean)
+    Private _updateInteractive As Boolean
+
     Private Async Function AutoUpdateAppAsync(interactive As Boolean) As Task(Of Boolean)
         If SelfUpdater.PendingExe IsNot Nothing Then
             ShowUpdateBanner()
             Return True
         End If
+        If interactive Then _updateInteractive = True
+        ' Never two downloads at the same time: join the one that is already running.
+        If _updateTask Is Nothing OrElse _updateTask.IsCompleted Then _updateTask = CheckAndDownloadUpdateAsync()
         Try
-            Using cts As New CancellationTokenSource(TimeSpan.FromMinutes(10))
-                Dim rel = Await SelfUpdater.CheckAsync(cts.Token)
-                If rel Is Nothing Then Return False
-                Logger.Log($"New version {rel.Tag} found, downloading…")
-                Dim p As New Progress(Of DownloadProgress)(Sub(d) If interactive Then lblStatus.Text = Loc.Tr("Downloading update {0}… {1}%", rel.Tag, d.Percent))
-                Await SelfUpdater.DownloadAsync(rel, p, cts.Token)
-                ShowUpdateBanner()
-                Return True
-            End Using
+            Dim found = Await _updateTask
+            If found Then ShowUpdateBanner()
+            Return found
         Catch ex As Exception
             Logger.Log("App update check failed: " & ex.Message)
             If interactive Then MessageBox.Show(Me, Loc.Tr("Could not check for updates: ") & ex.Message, Loc.Tr("Update"), MessageBoxButtons.OK, MessageBoxIcon.Warning)
             Return False
+        Finally
+            If interactive Then _updateInteractive = False
         End Try
+    End Function
+
+    ''' <summary>True when a new version was downloaded; exceptions are passed on to every caller.</summary>
+    Private Async Function CheckAndDownloadUpdateAsync() As Task(Of Boolean)
+        Using cts As New CancellationTokenSource(TimeSpan.FromMinutes(10))
+            Dim rel = Await SelfUpdater.CheckAsync(cts.Token)
+            If rel Is Nothing Then Return False
+            Logger.Log($"New version {rel.Tag} found, downloading…")
+            Dim p As New Progress(Of DownloadProgress)(Sub(d) If _updateInteractive Then lblStatus.Text = Loc.Tr("Downloading update {0}… {1}%", rel.Tag, d.Percent))
+            Await SelfUpdater.DownloadAsync(rel, p, cts.Token)
+            Return True
+        End Using
     End Function
 
     Private Sub ShowUpdateBanner()
