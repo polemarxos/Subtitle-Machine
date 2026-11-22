@@ -5,10 +5,21 @@ on:
     branches: [ main ]
     tags: [ 'v*' ]
   pull_request:
+  release:
+    types: [ published ]          # a release created on github.com gets both exes attached
   workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Create the release v<Version from Subtitle Machine.vbproj> with both exes'
+        type: boolean
+        default: true
 
 permissions:
   contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -27,7 +38,12 @@ jobs:
         id: ver
         shell: pwsh
         run: |
-          if ("${{ github.ref_type }}" -eq "tag") { $v = "${{ github.ref_name }}".TrimStart('v') } else { $v = "" }
+          if ("${{ github.ref_type }}" -eq "tag") {
+            $v = "${{ github.ref_name }}".TrimStart('v')
+          } else {
+            # Version from the project file (used for manual releases).
+            $v = ([xml](Get-Content "Subtitle Machine.vbproj")).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
+          }
           "version=$v" >> $env:GITHUB_OUTPUT
 
       # Two editions of the same app:
@@ -52,12 +68,17 @@ jobs:
           name: SubtitleMachine
           path: dist/*.exe
 
-      # Pushing a tag like v1.3.0 publishes a release; running copies of the app update from it.
-      - name: Create release
-        if: github.ref_type == 'tag'
+      # A tag like v1.3.0, a release created on github.com, or "Run workflow" publishes the exes;
+      # running copies of the app update themselves from the newest release.
+      - name: Create / update release
+        if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && inputs.create_release)
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          name: Subtitle Machine ${{ steps.ver.outputs.version }}
+          target_commitish: ${{ github.sha }}
           files: dist/*.exe
+          overwrite_files: true
           generate_release_notes: true
           body: |
             **Which file?**
