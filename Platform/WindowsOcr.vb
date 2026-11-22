@@ -27,12 +27,11 @@ Public Class WindowsOcr
                 Logger.Log("OCR language error: " & ex.Message)
             End Try
             If engine Is Nothing Then
-                warning = $"The Windows OCR language pack for {lang.Name} is not installed – results may be poor. " &
-                          $"Install it in Settings › Time & language › Language & region › Add a language ({lang.Name}), with 'Optical character recognition'."
+                warning = Loc.Tr("The Windows OCR language pack for {0} is not installed – results may be poor. Install it in Settings › Time & language › Language & region › Add a language ({0}), with 'Optical character recognition'.", lang.DisplayName)
             End If
         End If
         If engine Is Nothing Then engine = OcrEngine.TryCreateFromUserProfileLanguages()
-        If engine Is Nothing Then Throw New Exception("Windows OCR is not available on this PC.")
+        If engine Is Nothing Then Throw New Exception(Loc.Tr("Windows OCR is not available on this PC."))
         Logger.Log($"OCR engine: {engine.RecognizerLanguage.LanguageTag}")
         Return New WindowsOcr(engine, warning)
     End Function

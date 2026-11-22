@@ -33,7 +33,7 @@ Public Class CompareForm
         AllowDrop = True
         KeyPreview = True
 
-        Dim top As New Panel With {.Dock = DockStyle.Top, .Height = 112, .Tag = "panel"}
+        Dim top As New Panel With {.Dock = DockStyle.Top, .Width = ClientSize.Width, .Height = 112, .Tag = "panel"}
         AddFileRow(top, "File A:", txtA, btnBrowseA, 12)
         AddFileRow(top, "File B:", txtB, btnBrowseB, 44)
         btnSwap.Text = "⇅ Swap" : btnSwap.SetBounds(780, 26, 80, 28) : btnSwap.Anchor = AnchorStyles.Top Or AnchorStyles.Right
@@ -46,7 +46,7 @@ Public Class CompareForm
         btnNext.Text = "▼ Next difference" : btnNext.SetBounds(866, 78, 150, 28) : btnNext.Anchor = AnchorStyles.Top Or AnchorStyles.Right
         top.Controls.AddRange(New Control() {btnSwap, btnCompare, chkOnlyDiff, lblTol, numTolerance, lblMs, btnPrev, btnNext})
 
-        Dim bottom As New Panel With {.Dock = DockStyle.Bottom, .Height = 52, .Tag = "panel"}
+        Dim bottom As New Panel With {.Dock = DockStyle.Bottom, .Width = ClientSize.Width, .Height = 52, .Tag = "panel"}
         lblSummary.SetBounds(12, 6, 1070, 20) : lblSummary.Anchor = AnchorStyles.Left Or AnchorStyles.Right Or AnchorStyles.Top
         lblSummary.Text = "Choose two subtitle files (or drop them here) and press Compare."
         lblLegend.SetBounds(12, 28, 1070, 20) : lblLegend.Tag = "muted" : lblLegend.Anchor = AnchorStyles.Left Or AnchorStyles.Right Or AnchorStyles.Top
@@ -78,6 +78,9 @@ Public Class CompareForm
                                       RunCompare()
                                   End Sub
         AddHandler btnCompare.Click, Sub() RunCompare()
+        ' Compare automatically as soon as both files are chosen (typed, browsed or dropped).
+        AddHandler txtA.TextChanged, Sub() AutoCompare()
+        AddHandler txtB.TextChanged, Sub() AutoCompare()
         AddHandler chkOnlyDiff.CheckedChanged, Sub() FillGrid()
         AddHandler numTolerance.ValueChanged, Sub()
                                                   If _rows.Count > 0 Then RunCompare()
@@ -145,6 +148,10 @@ Public Class CompareForm
             txtB.Text = files(0)
         End If
         If File.Exists(txtA.Text) AndAlso File.Exists(txtB.Text) Then RunCompare()
+    End Sub
+
+    Private Sub AutoCompare()
+        If IsHandleCreated AndAlso File.Exists(txtA.Text) AndAlso File.Exists(txtB.Text) Then RunCompare()
     End Sub
 
     Private Sub RunCompare()

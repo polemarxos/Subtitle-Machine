@@ -4,10 +4,21 @@ Imports System.Text.Json
 Imports System.Text.RegularExpressions
 Imports System.Threading
 
+Public Enum TaskState
+    Pending
+    Processing
+    Done
+    Failed
+    Cancelled
+End Enum
+
 Public Class TaskItem
     Public Property FilePath As String
     Public Property IsVideo As Boolean
-    Public Property Status As String = "Pending"
+    ''' <summary>What happened to the file (used by the program logic).</summary>
+    Public Property State As TaskState = TaskState.Pending
+    ''' <summary>Text shown in the list (translated).</summary>
+    Public Property Status As String = Loc.Tr("Pending")
     Public Property OutputPath As String
     ''' <summary>All files written for this item (one per target language, plus videos).</summary>
     Public Property Outputs As New List(Of String)
@@ -89,7 +100,7 @@ Public Class SubtitlePipeline
                     outPath = Path.Combine(Path.GetDirectoryName(outPath), Path.GetFileNameWithoutExtension(outPath) & ".translated.srt")
                 End If
                 If File.Exists(outPath) AndAlso Not _s.OverwriteExisting Then
-                    notes.Add($"{target.Code}: exists")
+                    notes.Add(Loc.Tr("{0}: already exists", target.Code))
                     item.Outputs.Add(outPath)
                     subtitleFiles.Add((outPath, target))
                     Continue For
@@ -99,10 +110,10 @@ Public Class SubtitlePipeline
             ' The video already contains subtitles in this language → extract instead of translating.
             Dim existing = streams.FirstOrDefault(Function(st) st.CodecType = "subtitle" AndAlso TextCodecs.Contains(st.Codec) AndAlso st.Language Is target AndAlso Not st.Forced)
             If existing IsNot Nothing AndAlso _s.SubtitleSource <> "audio" Then
-                report($"{name}: extracting existing {target.Name} subtitles", baseFrac)
+                report(Loc.Tr("{0}: extracting existing {1} subtitles", name, target.DisplayName), baseFrac)
                 Await ExtractTextSubtitleAsync(item.FilePath, existing.SubIndex, outPath, ct)
-                If _s.FixFormatting Then SrtFile.Save(outPath, SubtitleFormatter.Apply(SrtFile.Load(outPath), _s.MaxLineLength))
-                notes.Add($"{target.Code}: from video")
+                PostProcess(outPath)
+                notes.Add(Loc.Tr("{0}: from video", target.Code))
                 item.Outputs.Add(outPath)
                 subtitleFiles.Add((outPath, target))
                 Continue For
@@ -111,15 +122,15 @@ Public Class SubtitlePipeline
             If source.Language Is target Then
                 ' Source is already in the target language: just copy/format it.
                 If Not String.Equals(outPath, source.Path, StringComparison.OrdinalIgnoreCase) Then File.Copy(source.Path, outPath, True)
-                If _s.FixFormatting Then SrtFile.Save(outPath, SubtitleFormatter.Apply(SrtFile.Load(outPath), _s.MaxLineLength))
-                notes.Add($"{target.Code}: already {target.Name}")
+                PostProcess(outPath)
+                notes.Add(Loc.Tr("{0}: already {1}", target.Code, target.DisplayName))
                 item.Outputs.Add(outPath)
                 subtitleFiles.Add((outPath, target))
                 Continue For
             End If
 
             Await TranslateFileAsync(source.Path, outPath, source.Language, target,
-                                     Sub(done, total) report($"{name}: translating {done}/{total} lines → {target.Name}", baseFrac + span * done / Math.Max(1, total)),
+                                     Sub(done, total) report(Loc.Tr("{0}: translating {1}/{2} lines → {3}", name, done, total, target.DisplayName), baseFrac + span * done / Math.Max(1, total)),
                                      ct)
             item.Outputs.Add(outPath)
             subtitleFiles.Add((outPath, target))
@@ -133,8 +144,8 @@ Public Class SubtitlePipeline
             Dim vSpan = videoShare / If(mkv AndAlso burn, 2, 1)
             If mkv Then
                 ct.ThrowIfCancellationRequested()
-                report($"{name}: adding subtitles to MKV", vStart)
-                Dim outMkv = Await VideoOutput.MuxIntoMkvAsync(item.FilePath, subtitleFiles, Sub(f) report($"{name}: adding subtitles to MKV {f:P0}", vStart + vSpan * f), ct)
+                report(Loc.Tr("{0}: adding subtitles to MKV", name), vStart)
+                Dim outMkv = Await VideoOutput.MuxIntoMkvAsync(item.FilePath, subtitleFiles, Sub(f) report(Loc.Tr("{0}: adding subtitles to MKV {1:P0}", name, f), vStart + vSpan * f), ct)
                 item.Outputs.Add(outMkv)
                 vStart += vSpan
                 notes.Add("MKV")
@@ -142,10 +153,10 @@ Public Class SubtitlePipeline
             If burn Then
                 ct.ThrowIfCancellationRequested()
                 Dim first = subtitleFiles(0)
-                report($"{name}: burning {first.Language.Name} subtitles into video", vStart)
-                Dim outMp4 = Await VideoOutput.BurnInAsync(item.FilePath, first.Path, first.Language, Sub(f) report($"{name}: burning subtitles {f:P0}", vStart + vSpan * f), ct)
+                report(Loc.Tr("{0}: burning {1} subtitles into the video", name, first.Language.DisplayName), vStart)
+                Dim outMp4 = Await VideoOutput.BurnInAsync(item.FilePath, first.Path, first.Language, Sub(f) report(Loc.Tr("{0}: burning subtitles {1:P0}", name, f), vStart + vSpan * f), ct)
                 item.Outputs.Add(outMp4)
-                notes.Add("burned-in")
+                notes.Add(Loc.Tr("burned-in"))
             End If
             If mkv AndAlso Not _s.KeepSrtFiles Then
                 For Each f In subtitleFiles
@@ -157,7 +168,8 @@ Public Class SubtitlePipeline
         End If
 
         item.OutputPath = item.Outputs.FirstOrDefault()
-        item.Status = "Completed" & If(notes.Count > 0, " (" & String.Join(", ", notes) & ")", "")
+        item.State = TaskState.Done
+        item.Status = Loc.Tr("Completed") & If(notes.Count > 0, " (" & String.Join(", ", notes) & ")", "")
     End Function
 
     ' ------------------------------------------------------------------
@@ -186,7 +198,7 @@ Public Class SubtitlePipeline
             If pick IsNot Nothing Then
                 Dim srt = SidecarPath(item.FilePath, pick.Language)
                 If Not File.Exists(srt) OrElse _s.OverwriteExisting Then
-                    report($"{name}: extracting subtitles ({If(pick.Language?.Name, "unknown language")})", 0.1)
+                    report(Loc.Tr("{0}: extracting subtitles ({1})", name, If(pick.Language?.DisplayName, Loc.Tr("unknown language"))), 0.1)
                     Await ExtractTextSubtitleAsync(item.FilePath, pick.SubIndex, srt, ct)
                 End If
                 Return New SourceResult With {.Path = srt, .Language = If(pick.Language, _sourceSetting)}
@@ -204,17 +216,26 @@ Public Class SubtitlePipeline
                 Return New SourceResult With {.Path = srt, .Language = If(imgPick.Language, _sourceSetting), .Note = If(note, "OCR")}
             End If
 
-            If mode = "embedded" Then Throw New Exception("The video has no usable subtitles (Subtitle source is set to 'Embedded only').")
+            If mode = "embedded" Then Throw New Exception(Loc.Tr("The video has no usable subtitles ('Create from' is set to embedded subtitles only)."))
         End If
 
         ' c) speech-to-text
         Dim audio = PickAudioStream(streams)
         If audio Is Nothing AndAlso streams.Count > 0 AndAlso Not streams.Any(Function(st) st.CodecType = "audio") Then
-            Throw New Exception("The file has no audio track and no subtitles.")
+            Throw New Exception(Loc.Tr("The file has no audio track and no subtitles."))
         End If
         Dim r = Await TranscribeAsync(item.FilePath, audio, report, ct)
-        Return New SourceResult With {.Path = r.Item1, .Language = If(r.Item2, _sourceSetting), .Note = "from audio"}
+        Return New SourceResult With {.Path = r.Item1, .Language = If(r.Item2, _sourceSetting), .Note = Loc.Tr("from audio")}
     End Function
+
+    ''' <summary>Hearing-impaired cleanup and line/timing fixes for files that are not translated.</summary>
+    Private Sub PostProcess(path As String)
+        If Not _s.RemoveHearingImpaired AndAlso Not _s.FixFormatting Then Return
+        Dim cues = SrtFile.Load(path)
+        If _s.RemoveHearingImpaired Then cues = SubtitleCleaner.Clean(cues)
+        If _s.FixFormatting Then cues = SubtitleFormatter.Apply(cues, _s.MaxLineLength)
+        SrtFile.Save(path, cues)
+    End Sub
 
     ''' <summary>Source-language stream → English → first non-forced → any.</summary>
     Private Function PickStream(list As List(Of StreamInfo)) As StreamInfo
@@ -240,7 +261,9 @@ Public Class SubtitlePipeline
     Private Async Function TranslateFileAsync(inputSrt As String, outputSrt As String, sourceLang As LanguageInfo, target As LanguageInfo,
                                               onProgress As Action(Of Integer, Integer), ct As CancellationToken) As Task
         Dim cues = SrtFile.Load(inputSrt)
-        If cues.Count = 0 Then Throw New Exception("The subtitle file is empty or not a valid SRT.")
+        If cues.Count = 0 Then Throw New Exception(Loc.Tr("The subtitle file is empty or not a valid SRT."))
+        If _s.RemoveHearingImpaired Then cues = SubtitleCleaner.Clean(cues)
+        If cues.Count = 0 Then Throw New Exception(Loc.Tr("Nothing left to translate after removing hearing-impaired texts."))
         Dim total = cues.Count
         Dim done = 0
 
@@ -396,7 +419,7 @@ Public Class SubtitlePipeline
     Private Async Function ExtractTextSubtitleAsync(video As String, subIndex As Integer, output As String, ct As CancellationToken) As Task
         Dim r = Await ProcessRunner.RunAsync(FfmpegComponent.FfmpegExe, $"-hide_banner -y -i ""{video}"" -map 0:s:{subIndex} -c:s srt ""{output}""", ct)
         If r.ExitCode <> 0 OrElse Not File.Exists(output) Then
-            Throw New Exception("FFmpeg could not extract the subtitles: " & ProcessRunner.Tail(r.StdErr, 400))
+            Throw New Exception(Loc.Tr("FFmpeg could not extract the subtitles:") & " " & ProcessRunner.Tail(r.StdErr, 400))
         End If
     End Function
 
@@ -405,13 +428,13 @@ Public Class SubtitlePipeline
     ' ------------------------------------------------------------------
     Private Async Function OcrImageSubtitlesAsync(video As String, st As StreamInfo, outputSrt As String, report As Action(Of String, Double), ct As CancellationToken) As Task(Of String)
         Dim name = Path.GetFileName(video)
-        report($"{name}: reading image subtitles ({st.Codec})", 0.05)
+        report(Loc.Tr("{0}: reading image subtitles ({1})", name, st.Codec), 0.05)
         Dim cues As List(Of ImageCue)
         If st.Codec.Contains("pgs") Then
             Dim sup = Path.Combine(Path.GetTempPath(), $"sm_{Guid.NewGuid():N}.sup")
             Try
                 Dim r = Await ProcessRunner.RunAsync(FfmpegComponent.FfmpegExe, $"-hide_banner -y -i ""{video}"" -map 0:s:{st.SubIndex} -c:s copy ""{sup}""", ct)
-                If r.ExitCode <> 0 OrElse Not File.Exists(sup) Then Throw New Exception("FFmpeg could not extract the PGS subtitles: " & ProcessRunner.Tail(r.StdErr, 300))
+                If r.ExitCode <> 0 OrElse Not File.Exists(sup) Then Throw New Exception(Loc.Tr("FFmpeg could not extract the PGS subtitles:") & " " & ProcessRunner.Tail(r.StdErr, 300))
                 cues = ImageSubtitleDecoders.DecodePgs(File.ReadAllBytes(sup))
             Finally
                 Try : File.Delete(sup) : Catch : End Try
@@ -422,7 +445,7 @@ Public Class SubtitlePipeline
             Dim packets = ImageSubtitleDecoders.ParseFfprobePackets(r.StdOut, pal)
             cues = ImageSubtitleDecoders.DecodeVobSub(packets, pal)
         End If
-        If cues.Count = 0 Then Throw New Exception("No pictures found in the image subtitle track.")
+        If cues.Count = 0 Then Throw New Exception(Loc.Tr("No pictures found in the image subtitle track."))
 
         Dim engine = OcrFactory(If(st.Language, _sourceSetting))
         Dim srt As New List(Of SrtCue)
@@ -435,12 +458,12 @@ Public Class SubtitlePipeline
             If Not String.IsNullOrWhiteSpace(text) Then
                 srt.Add(New SrtCue With {.Index = srt.Count + 1, .Timing = SubtitleFormatter.FormatTiming(cues(i).Start, cues(i).End), .Text = text})
             End If
-            If i Mod 10 = 0 Then report($"{name}: OCR {i + 1}/{cues.Count}", 0.05 + 0.35 * i / cues.Count)
+            If i Mod 10 = 0 Then report(Loc.Tr("{0}: reading text (OCR) {1}/{2}", name, i + 1, cues.Count), 0.05 + 0.35 * i / cues.Count)
         Next
-        If srt.Count = 0 Then Throw New Exception("OCR did not recognise any text in the image subtitles.")
+        If srt.Count = 0 Then Throw New Exception(Loc.Tr("OCR did not recognise any text in the image subtitles."))
         SrtFile.Save(outputSrt, srt)
         Logger.Log($"OCR: {srt.Count} lines from {cues.Count} pictures → {outputSrt}")
-        Return If(engine.Warning IsNot Nothing, "OCR – language pack missing", "OCR")
+        Return If(engine.Warning IsNot Nothing, Loc.Tr("OCR – language pack missing"), "OCR")
     End Function
 
     ' ------------------------------------------------------------------
@@ -453,18 +476,18 @@ Public Class SubtitlePipeline
     Private Async Function TranscribeAsync(mediaPath As String, audio As StreamInfo, report As Action(Of String, Double), ct As CancellationToken) As Task(Of Tuple(Of String, LanguageInfo))
         Dim name = Path.GetFileName(mediaPath)
         Dim whisperExe = WhisperEngineComponent.FindExe()
-        If whisperExe Is Nothing Then Throw New Exception("whisper.cpp is not installed. Open 'Components'.")
+        If whisperExe Is Nothing Then Throw New Exception(Loc.Tr("whisper.cpp is not installed. Open 'Components'."))
         Dim model = WhisperModelComponent.ModelPath(_s.WhisperModel)
-        If Not File.Exists(model) Then Throw New Exception($"Whisper model '{_s.WhisperModel}' is not downloaded. Open 'Components'.")
+        If Not File.Exists(model) Then Throw New Exception(Loc.Tr("Whisper model '{0}' is not downloaded. Open 'Components'.", _s.WhisperModel))
 
         Dim tempDir = Path.Combine(Path.GetTempPath(), "subtitle_machine_" & Guid.NewGuid().ToString("N"))
         Directory.CreateDirectory(tempDir)
         Try
-            report($"{name}: extracting audio", 0.02)
+            report(Loc.Tr("{0}: extracting audio", name), 0.02)
             Dim wav = Path.Combine(tempDir, "audio.wav")
             Dim map = If(audio IsNot Nothing, $"-map 0:a:{audio.SubIndex} ", "")
             Dim ff = Await ProcessRunner.RunAsync(FfmpegComponent.FfmpegExe, $"-hide_banner -y -i ""{mediaPath}"" {map}-vn -ac 1 -ar 16000 -c:a pcm_s16le ""{wav}""", ct)
-            If ff.ExitCode <> 0 Then Throw New Exception("FFmpeg could not extract the audio: " & ProcessRunner.Tail(ff.StdErr, 400))
+            If ff.ExitCode <> 0 Then Throw New Exception(Loc.Tr("FFmpeg could not extract the audio:") & " " & ProcessRunner.Tail(ff.StdErr, 400))
 
             Dim lang = If(_sourceSetting IsNot Nothing, _sourceSetting.Code, "auto")
             Dim outBase = Path.Combine(tempDir, "audio")
@@ -473,18 +496,18 @@ Public Class SubtitlePipeline
             Dim vad = WhisperVadComponent.FindModel()
             If _s.UseVad AndAlso vad IsNot Nothing Then args &= $" --vad --vad-model ""{vad}"""
             Dim detected As LanguageInfo = Nothing
-            report($"{name}: transcribing audio (Whisper {_s.WhisperModel})", 0.05)
+            report(Loc.Tr("{0}: transcribing audio (Whisper {1})", name, _s.WhisperModel), 0.05)
             Dim wr = Await ProcessRunner.RunAsync(whisperExe, args, ct, onStdErrLine:=
                 Sub(line)
                     Dim dm = DetectedLangRx.Match(line)
                     If dm.Success Then detected = Languages.Find(dm.Groups(1).Value)
                     Dim pm = ProgressRx.Match(line)
-                    If pm.Success Then report($"{name}: transcribing audio {pm.Groups(1).Value}%", 0.05 + 0.35 * CInt(pm.Groups(1).Value) / 100.0)
+                    If pm.Success Then report(Loc.Tr("{0}: transcribing audio {1}%", name, pm.Groups(1).Value), 0.05 + 0.35 * CInt(pm.Groups(1).Value) / 100.0)
                 End Sub)
-            If wr.ExitCode <> 0 Then Throw New Exception("Whisper failed: " & ProcessRunner.Tail(wr.StdErr, 600))
+            If wr.ExitCode <> 0 Then Throw New Exception(Loc.Tr("Whisper failed:") & " " & ProcessRunner.Tail(wr.StdErr, 600))
 
             Dim generated = outBase & ".srt"
-            If Not File.Exists(generated) Then Throw New Exception("Whisper did not produce an SRT file.")
+            If Not File.Exists(generated) Then Throw New Exception(Loc.Tr("Whisper did not produce an SRT file."))
             Dim srcLang = If(_sourceSetting, detected)
             Dim dest = SidecarPath(mediaPath, srcLang)
             Dim cues = SrtFile.Load(generated)

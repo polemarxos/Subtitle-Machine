@@ -430,3 +430,32 @@ Public Class DefaultGlossaryTests
         Assert.True(New AppSettings().ReplaceOriginal)
     End Sub
 End Class
+
+Public Class CleanerTests
+    <Theory>
+    <InlineData("[MUSIC PLAYING]", "")>
+    <InlineData("(laughs) That's funny.", "That's funny.")>
+    <InlineData("JOHN: Where are you?", "Where are you?")>
+    <InlineData("- JOHN: Hi." & vbLf & "- MARY: Hello.", "- Hi." & vbLf & "- Hello.")>
+    <InlineData("- Get down!" & vbLf & "- [gunshots]", "Get down!")>
+    <InlineData("♪ I will always love you ♪", "")>
+    <InlineData("<i>♪ la la la ♪</i>", "")>
+    <InlineData("ΓΙΑΝΝΗΣ: Τι κάνεις;", "Τι κάνεις;")>
+    <InlineData("<i>(narrator) Long ago...</i>", "<i>Long ago...</i>")>
+    <InlineData("It's 10:30 already.", "It's 10:30 already.")>
+    <InlineData("I said: no.", "I said: no.")>
+    Public Sub CleanText_RemovesHearingImpairedParts(input As String, expected As String)
+        Assert.Equal(expected, SubtitleCleaner.CleanText(input))
+    End Sub
+
+    <Fact>
+    Public Sub Clean_DropsEmptyCuesAndRenumbers()
+        Dim cues As New List(Of SrtCue) From {
+            New SrtCue With {.Timing = "00:00:01,000 --> 00:00:02,000", .Text = "[door opens]"},
+            New SrtCue With {.Timing = "00:00:03,000 --> 00:00:04,000", .Text = "Hello."}}
+        Dim r = SubtitleCleaner.Clean(cues)
+        Assert.Single(r)
+        Assert.Equal(1, r(0).Index)
+        Assert.Equal("Hello.", r(0).Text)
+    End Sub
+End Class

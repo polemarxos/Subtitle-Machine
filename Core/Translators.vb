@@ -163,9 +163,9 @@ Public Class LlamaTranslator
         If _process IsNot Nothing AndAlso Not _process.HasExited Then Return
 
         Dim exe = LlamaEngineComponent.FindExe()
-        If exe Is Nothing Then Throw New Exception("llama.cpp is not installed. Open 'Components' and install it.")
+        If exe Is Nothing Then Throw New Exception(Loc.Tr("llama.cpp is not installed. Open 'Components' and install it."))
         Dim model = New TranslateModelComponent(_settings).LocalPath
-        If Not File.Exists(model) Then Throw New Exception($"TranslateGemma {_settings.EffectiveModelSize().ToUpperInvariant()} is not downloaded. Open 'Components'.")
+        If Not File.Exists(model) Then Throw New Exception(Loc.Tr("TranslateGemma {0} is not downloaded. Open 'Components'.", _settings.EffectiveModelSize().ToUpperInvariant()))
 
         Dim port = LlamaServer.GetFreePort()
         _baseUrl = $"http://127.0.0.1:{port}"
@@ -173,7 +173,7 @@ Public Class LlamaTranslator
         ' 4096 tokens per slot: enough for a context batch of several lines.
         Dim args = $"-m ""{model}"" --host 127.0.0.1 --port {port} -c {4096 * parallel} -np {parallel} -ngl {GpuLayers(model)}"
 
-        progress?.Report(New StatusUpdate($"Loading {DisplayName}…"))
+        progress?.Report(New StatusUpdate(Loc.Tr("Loading {0}…", DisplayName)))
         Logger.Log("Starting llama-server " & args)
         Dim psi As New ProcessStartInfo(exe, args) With {
             .UseShellExecute = False, .CreateNoWindow = True,
@@ -192,8 +192,8 @@ Public Class LlamaTranslator
         Do
             ct.ThrowIfCancellationRequested()
             If _process.HasExited Then
-                Throw New Exception("The AI translator stopped while loading the model." & vbCrLf &
-                                    "Update your graphics driver, or choose 'Vulkan' or 'CPU' in Components." & vbCrLf & vbCrLf & LastLog())
+                Throw New Exception(Loc.Tr("The AI translator stopped while loading the model.") & vbCrLf &
+                                    Loc.Tr("Update your graphics driver, or choose 'Vulkan' or 'CPU' in Components.") & vbCrLf & vbCrLf & LastLog())
             End If
             Try
                 Using cts = CancellationTokenSource.CreateLinkedTokenSource(ct)
@@ -204,7 +204,7 @@ Public Class LlamaTranslator
                 End Using
             Catch ex As Exception When Not ct.IsCancellationRequested
             End Try
-            If sw.Elapsed.TotalMinutes > 5 Then Throw New TimeoutException("The AI model took too long to load." & vbCrLf & LastLog())
+            If sw.Elapsed.TotalMinutes > 5 Then Throw New TimeoutException(Loc.Tr("The AI model took too long to load.") & vbCrLf & LastLog())
             Await Task.Delay(500, ct)
         Loop
         Logger.Log($"llama-server ready in {sw.Elapsed.TotalSeconds:0.0}s")

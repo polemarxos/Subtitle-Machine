@@ -47,7 +47,7 @@ Public Class SubtitleEditorForm
         StartPosition = FormStartPosition.CenterParent
         KeyPreview = True
 
-        Dim top As New Panel With {.Dock = DockStyle.Top, .Height = 48, .Tag = "panel", .Padding = New Padding(10, 10, 10, 6)}
+        Dim top As New Panel With {.Dock = DockStyle.Top, .Width = ClientSize.Width, .Height = 48, .Tag = "panel", .Padding = New Padding(10, 10, 10, 6)}
         Dim lblFile As New Label With {.Text = "Translation:", .AutoSize = True, .Location = New Point(12, 16)}
         cmbFile.SetBounds(100, 12, 330, 25)
         cmbFile.DropDownStyle = ComboBoxStyle.DropDownList
@@ -58,7 +58,7 @@ Public Class SubtitleEditorForm
         btnFind.SetBounds(706, 11, 90, 28) : btnFind.Text = "Find next"
         top.Controls.AddRange(New Control() {lblFile, cmbFile, txtFind, btnFind})
 
-        Dim bottom As New Panel With {.Dock = DockStyle.Bottom, .Height = 54, .Tag = "panel"}
+        Dim bottom As New Panel With {.Dock = DockStyle.Bottom, .Width = ClientSize.Width, .Height = 54, .Tag = "panel"}
         btnRetranslate.Text = "Re-translate selected" : btnRetranslate.SetBounds(12, 12, 170, 32)
         lblStatus.SetBounds(194, 18, 480, 22) : lblStatus.Tag = "muted" : lblStatus.AutoEllipsis = True
         lblStatus.Anchor = AnchorStyles.Left Or AnchorStyles.Right Or AnchorStyles.Top

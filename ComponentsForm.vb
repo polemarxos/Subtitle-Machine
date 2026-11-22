@@ -29,6 +29,7 @@ Public Class ComponentsForm
     Private ReadOnly numLineLen As New NumericUpDown()
     Private ReadOnly chkKeepSrt As New CheckBox()
     Private ReadOnly chkNotify As New CheckBox()
+    Private ReadOnly chkHearing As New CheckBox()
     Private ReadOnly cmbTheme As New ComboBox()
     Private ReadOnly btnGlossary As New Button()
     Private ReadOnly btnCheck As New Button()
@@ -54,7 +55,7 @@ Public Class ComponentsForm
         Font = New Font("Segoe UI", 9.0F)
         BackColor = BgDark
         ForeColor = Color.White
-        ClientSize = New Size(780, 712)
+        ClientSize = New Size(780, 740)
         FormBorderStyle = FormBorderStyle.FixedDialog
         MaximizeBox = False
         MinimizeBox = True       ' downloads can take a while – allow minimising
@@ -80,7 +81,7 @@ Public Class ComponentsForm
         AddHandler lv.ItemChecked, Sub() UpdateSelectionSize()
 
         Dim grp As New GroupBox With {.Text = "Settings", .ForeColor = Color.White}
-        grp.SetBounds(12, 230, 756, 362)
+        grp.SetBounds(12, 230, 756, 390)
 
         Dim y = 24
         AddRow(grp, "Whisper model:", cmbWhisper, y)
@@ -116,6 +117,9 @@ Public Class ComponentsForm
         y += 28
         AddCheck(grp, chkKeepSrt, "Keep the .srt files after adding them into the MKV", 12, y)
         AddCheck(grp, chkNotify, "Notification and sound when a batch is finished", 390, y)
+        y += 28
+        AddCheck(grp, chkHearing, "Remove hearing-impaired texts: [music], (laughs), JOHN:, ♪ lyrics ♪", 12, y)
+        chkHearing.Width = 700
         y += 32
         AddRow(grp, "Theme:", cmbTheme, y)
         cmbTheme.Width = 220
@@ -138,8 +142,8 @@ Public Class ComponentsForm
         btnCancel.Enabled = False
         StyleButton(btnClose, "Close", 638, BgControl)
 
-        progress.SetBounds(12, 644, 756, 22)
-        lblStatus.SetBounds(12, 672, 756, 34)
+        progress.SetBounds(12, 672, 756, 22)
+        lblStatus.SetBounds(12, 700, 756, 34)
         lblStatus.Text = "Ready"
 
         Controls.AddRange(New Control() {lblHardware, lv, grp, btnCheck, btnInstall, btnCancel, btnClose, progress, lblStatus})
@@ -177,7 +181,7 @@ Public Class ComponentsForm
         AddHandler cmbSize.SelectedIndexChanged, AddressOf OptionsChanged
         AddHandler cmbGpu.SelectedIndexChanged, AddressOf OptionsChanged
         AddHandler cmbTheme.SelectedIndexChanged, AddressOf OptionsChanged
-        For Each c In New CheckBox() {chkStartup, chkAutoUpdate, chkVad, chkOcr, chkContext, chkFormat, chkKeepSrt, chkNotify}
+        For Each c In New CheckBox() {chkStartup, chkAutoUpdate, chkVad, chkOcr, chkContext, chkFormat, chkKeepSrt, chkNotify, chkHearing}
             AddHandler c.CheckedChanged, AddressOf OptionsChanged
         Next
         AddHandler numLineLen.ValueChanged, AddressOf OptionsChanged
@@ -204,7 +208,7 @@ Public Class ComponentsForm
 
     Private Sub StyleButton(b As Button, caption As String, x As Integer, color As Color)
         b.Text = caption
-        b.SetBounds(x, 604, 130, 30)
+        b.SetBounds(x, 632, 130, 30)
         b.FlatStyle = FlatStyle.Flat
         b.BackColor = color
         b.FlatAppearance.BorderColor = color
@@ -248,6 +252,7 @@ Public Class ComponentsForm
         numLineLen.Value = _settings.MaxLineLength
         chkKeepSrt.Checked = _settings.KeepSrtFiles
         chkNotify.Checked = _settings.NotifyWhenDone
+        chkHearing.Checked = _settings.RemoveHearingImpaired
         SelectValue(cmbTheme, _settings.Theme)
         _loading = False
         RebuildList()
@@ -281,6 +286,7 @@ Public Class ComponentsForm
         _settings.MaxLineLength = CInt(numLineLen.Value)
         _settings.KeepSrtFiles = chkKeepSrt.Checked
         _settings.NotifyWhenDone = chkNotify.Checked
+        _settings.RemoveHearingImpaired = chkHearing.Checked
         Dim newTheme = DirectCast(cmbTheme.SelectedItem, ComboItem).Value
         If newTheme <> _settings.Theme Then
             _settings.Theme = newTheme
@@ -498,7 +504,7 @@ Public Class GlossaryForm
         txt.Dock = DockStyle.Fill
         txt.Text = If(IO.File.Exists(Glossary.FilePath), IO.File.ReadAllText(Glossary.FilePath, System.Text.Encoding.UTF8), Glossary.Template)
 
-        Dim bottom As New Panel With {.Dock = DockStyle.Bottom, .Height = 52, .Tag = "panel"}
+        Dim bottom As New Panel With {.Dock = DockStyle.Bottom, .Width = ClientSize.Width, .Height = 52, .Tag = "panel"}
         Dim btnSave As New Button With {.Text = "Save", .Tag = "accent", .Anchor = AnchorStyles.Right Or AnchorStyles.Top}
         btnSave.SetBounds(ClientSize.Width - 222, 10, 100, 32)
         Dim btnCancel As New Button With {.Text = "Cancel", .DialogResult = DialogResult.Cancel, .Anchor = AnchorStyles.Right Or AnchorStyles.Top}

@@ -110,10 +110,10 @@ Public MustInherit Class ToolComponent
             Await WebHelper.DownloadFileAsync(f.Url, dest, dlProgress, ct, f.Sha256)
             downloaded.Add(dest)
         Next
-        progress?.Report(New StatusUpdate($"{DisplayName}: installing…"))
+        progress?.Report(New StatusUpdate(Loc.Tr("{0}: installing…", DisplayName)))
         Await InstallFilesAsync(latest, downloaded, ct)
         VersionStore.SetVersion(Id, latest.Version)
-        progress?.Report(New StatusUpdate($"{DisplayName}: installed {latest.Version}", 100))
+        progress?.Report(New StatusUpdate(Loc.Tr("{0}: installed {1}", DisplayName, latest.Version), 100))
         Logger.Log($"Installed {Id} {latest.Version}")
     End Function
 
@@ -253,7 +253,7 @@ Public Class WhisperEngineComponent
     End Function
 
     Public Overrides ReadOnly Property Id As String = "whisper"
-    Public Overrides ReadOnly Property DisplayName As String = "whisper.cpp (speech-to-text engine)"
+    Public Overrides ReadOnly Property DisplayName As String = Loc.Tr("whisper.cpp (speech-to-text engine)")
     Public Overrides ReadOnly Property Source As String = "github.com/ggml-org/whisper.cpp"
 
     Private Function BuildVariant() As String
@@ -297,12 +297,12 @@ Public Class WhisperModelComponent
     Inherits ToolComponent
 
     Public Shared ReadOnly Models As (Name As String, Description As String)() = {
-        ("large-v3-turbo", "Large v3 Turbo – best speed/quality (1.6 GB) – recommended"),
-        ("large-v3-turbo-q5_0", "Large v3 Turbo Q5 – smaller, almost same quality (0.6 GB)"),
-        ("large-v3", "Large v3 – best quality, slow (3.1 GB)"),
+        ("large-v3-turbo", Loc.Tr("Large v3 Turbo – best speed/quality (1.6 GB) – recommended")),
+        ("large-v3-turbo-q5_0", Loc.Tr("Large v3 Turbo Q5 – smaller, almost same quality (0.6 GB)")),
+        ("large-v3", Loc.Tr("Large v3 – best quality, slow (3.1 GB)")),
         ("medium", "Medium (1.5 GB)"),
-        ("small", "Small – fast, for weak PCs (0.5 GB)"),
-        ("base", "Base – very fast, low quality (0.15 GB)")
+        ("small", Loc.Tr("Small – fast, for weak PCs (0.5 GB)")),
+        ("base", Loc.Tr("Base – very fast, low quality (0.15 GB)"))
     }
 
     Public Sub New(s As AppSettings)
@@ -371,7 +371,7 @@ Public Class LlamaEngineComponent
     End Function
 
     Public Overrides ReadOnly Property Id As String = "llama"
-    Public Overrides ReadOnly Property DisplayName As String = "llama.cpp (AI translation engine)"
+    Public Overrides ReadOnly Property DisplayName As String = Loc.Tr("llama.cpp (AI translation engine)")
     Public Overrides ReadOnly Property Source As String = "github.com/ggml-org/llama.cpp"
 
     Public Overrides Function IsInstalled() As Boolean
@@ -434,7 +434,7 @@ Public Class TranslateModelComponent
     Inherits ToolComponent
 
     Public Shared ReadOnly Sizes As (Tag As String, Download As String, Vram As String)() = {
-        ("4b", "2.5 GB", "4+ GB VRAM or CPU"),
+        ("4b", "2.5 GB", Loc.Tr("4+ GB VRAM or CPU")),
         ("12b", "7.3 GB", "10+ GB VRAM"),
         ("27b", "16.5 GB", "22+ GB VRAM")
     }
@@ -529,7 +529,7 @@ Public Class WhisperVadComponent
     End Function
 
     Public Overrides ReadOnly Property Id As String = "whisper-vad"
-    Public Overrides ReadOnly Property DisplayName As String = "Voice detection model (Silero VAD)"
+    Public Overrides ReadOnly Property DisplayName As String = Loc.Tr("Voice detection model (Silero VAD)")
     Public Overrides ReadOnly Property Source As String = "huggingface.co/ggml-org/whisper-vad"
 
     Public Overrides Function IsRequired() As Boolean

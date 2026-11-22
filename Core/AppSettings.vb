@@ -30,6 +30,8 @@ Public Class AppSettings
     ''' <summary>Translate several neighbouring lines together so names and tone stay consistent.</summary>
     Public Property ContextTranslation As Boolean = True
     ''' <summary>Re-wrap long lines and fix too-short / overlapping display times.</summary>
+    ''' <summary>Remove texts for the hearing impaired: [MUSIC], (laughs), JOHN:, ♪ lyrics ♪.</summary>
+    Public Property RemoveHearingImpaired As Boolean = False
     Public Property FixFormatting As Boolean = True
     Public Property MaxLineLength As Integer = 42
 

@@ -12,8 +12,15 @@ Public Class LanguageInfo
         Me.Code3 = code3
     End Sub
 
+    ''' <summary>Name in the interface language (Name stays English – it is used in the AI prompt).</summary>
+    Public ReadOnly Property DisplayName As String
+        Get
+            Return Loc.Tr(Name)
+        End Get
+    End Property
+
     Public Overrides Function ToString() As String
-        Return Name
+        Return DisplayName
     End Function
 End Class
 

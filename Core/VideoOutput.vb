@@ -94,7 +94,7 @@ Public Module VideoOutput
         Dim r = Await ProcessRunner.RunAsync(FfmpegComponent.FfmpegExe, a.ToString(), ct, onStdErrLine:=ProgressHandler(duration, report))
         If r.ExitCode <> 0 OrElse Not File.Exists(temp) Then
             Try : File.Delete(temp) : Catch : End Try
-            Throw New Exception("Could not add the subtitles to the MKV: " & ProcessRunner.Tail(r.StdErr, 400))
+            Throw New Exception(Loc.Tr("Could not add the subtitles to the MKV:") & " " & ProcessRunner.Tail(r.StdErr, 400))
         End If
         File.Move(temp, output, True)
         Return output
@@ -139,7 +139,7 @@ Public Module VideoOutput
                 lastErr = ProcessRunner.Tail(r.StdErr, 400)
                 Logger.Log($"Encoder failed ({enc}), trying the next one.")
             Next
-            Throw New Exception("Could not create the video with burned-in subtitles: " & lastErr)
+            Throw New Exception(Loc.Tr("Could not create the video with burned-in subtitles:") & " " & lastErr)
         Finally
             Try : File.Delete(temp) : Catch : End Try
             Try : Directory.Delete(work, True) : Catch : End Try

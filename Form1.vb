@@ -495,16 +495,12 @@ Public Class Form1
         End Using
         Dim fg = pal.Text
         If e.ColumnIndex = 2 Then
-            Dim s = e.SubItem.Text
-            If s.StartsWith("Completed") OrElse s.StartsWith("Done") Then
-                fg = pal.Ok
-            ElseIf s.StartsWith("Failed") Then
-                fg = pal.Err
-            ElseIf s.StartsWith("Skipped") OrElse s.StartsWith("Cancelled") Then
-                fg = pal.Warn
-            ElseIf s <> "Pending" Then
-                fg = pal.Busy
-            End If
+            Select Case DirectCast(e.Item.Tag, TaskItem).State
+                Case TaskState.Done : fg = pal.Ok
+                Case TaskState.Failed : fg = pal.Err
+                Case TaskState.Cancelled : fg = pal.Warn
+                Case TaskState.Processing : fg = pal.Busy
+            End Select
         ElseIf e.ColumnIndex = 1 OrElse e.ColumnIndex = 3 Then
             fg = pal.Muted
         End If
@@ -538,10 +534,13 @@ Public Class Form1
         progressBar.Value = 0
         Dim failed = 0
         Dim runWhenDone = False
-        Dim pending = Tasks.Where(Function(t) t.Status = "Pending" OrElse t.Status.StartsWith("Failed") OrElse t.Status = "Cancelled").ToList()
+        Dim pending = Tasks.Where(Function(t) t.State <> TaskState.Done).ToList()
         If pending.Count = 0 Then
             ' Everything was processed already – run again (e.g. with another target language).
-            For Each t In Tasks : t.Status = "Pending" : t.OutputPath = Nothing : t.Outputs.Clear() : RefreshTaskRow(t) : Next
+            For Each t In Tasks
+                t.State = TaskState.Pending : t.Status = Tr("Pending") : t.OutputPath = Nothing : t.Outputs.Clear()
+                RefreshTaskRow(t)
+            Next
             pending = Tasks.ToList()
         End If
 
@@ -560,7 +559,8 @@ Public Class Form1
                 ct.ThrowIfCancellationRequested()
                 Dim item = pending(i)
                 Dim index = i
-                item.Status = "Processing…"
+                item.State = TaskState.Processing
+                item.Status = Tr("Processing…")
                 RefreshTaskRow(item)
                 Dim lastUi As Long = 0
                 Dim report As Action(Of String, Double) =
@@ -577,12 +577,14 @@ Public Class Form1
                 Try
                     Await Task.Run(Function() pipeline.ProcessAsync(item, report, ct), ct)
                 Catch ex As OperationCanceledException
-                    item.Status = "Cancelled"
+                    item.State = TaskState.Cancelled
+                    item.Status = Tr("Cancelled")
                     RefreshTaskRow(item)
                     Throw
                 Catch ex As Exception
                     failed += 1
-                    item.Status = "Failed: " & ex.Message.Split({vbCr, vbLf}, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()
+                    item.State = TaskState.Failed
+                    item.Status = Tr("Failed:") & " " & ex.Message.Split({vbCr, vbLf}, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()
                     Logger.Log($"FAILED {item.FilePath}: {ex}")
                 End Try
                 RefreshTaskRow(item)
