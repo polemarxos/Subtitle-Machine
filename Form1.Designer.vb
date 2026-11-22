@@ -452,7 +452,7 @@ Partial Class Form1
         chkOverwrite.ForeColor = Color.Gainsboro
         chkOverwrite.Margin = New Padding(16, 3, 3, 3)
         chkOverwrite.Name = "chkOverwrite"
-        chkOverwrite.Text = "Re-create subtitles that already exist"
+        chkOverwrite.Text = "Redo files that are already finished"
         '
         ' pnlFooter
         '

@@ -63,8 +63,11 @@ Public Class Form1
         PopulateModelCombo()
         UpdateTargetsText()
         UpdateUiState()
-        toolTip.SetToolTip(chkOverwrite, "Off: files that already exist (e.g. Movie.el.srt from an earlier run) are skipped." & vbCrLf &
-                                         "On: they are extracted / transcribed / translated again and overwritten.")
+        toolTip.SetToolTip(chkOverwrite,
+            "Example: you already made Movie.el.srt yesterday and add Movie.mkv to the list again." & vbCrLf & vbCrLf &
+            "Unticked (normal): Movie.el.srt is left as it is and the file is skipped – fast, nothing is lost." & vbCrLf &
+            "Ticked: everything is made again from the start and the old files are replaced." & vbCrLf & vbCrLf &
+            "Tick it after changing the AI model, the glossary or the Whisper model, or when a result was bad.")
         toolTip.SetToolTip(cmbModel, "Google TranslateGemma, running locally with llama.cpp." & vbCrLf & "Automatic chooses the size that fits your graphics card.")
         toolTip.SetToolTip(cmbSubSource, "Embedded: use subtitles inside the video (text, or image subtitles read with OCR)." & vbCrLf &
                                          "Audio: always create the subtitles from the speech with Whisper.")

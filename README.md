@@ -91,7 +91,7 @@ Stored next to the exe (or in `%LocalAppData%\Subtitle Machine` if that folder i
 | `Theme` | `system` | `system`, `dark`, `light` |
 | `NotifyWhenDone` | `true` | Notification and sound when a batch is finished |
 | `ReplaceOriginal` | `true` | Write the translation into the original subtitle file (one target language only) |
-| `OverwriteExisting` | `false` | Off: subtitle files that already exist are skipped. On: they are made again and overwritten |
+| `OverwriteExisting` | `false` | *Redo files that are already finished.* Off: files made in an earlier run (e.g. `Movie.el.srt`) are kept and skipped. On: everything is made again and the old files are replaced – useful after changing the model or glossary |
 | `AutoUpdateApp` | `true` | Update the app automatically from GitHub |
 | `CheckComponentUpdates` | `true` | Check component updates on startup |
 
