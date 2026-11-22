@@ -116,7 +116,8 @@ Partial Class Form1
         btnComponents.Location = New Point(642, 12)
         btnComponents.Name = "btnComponents"
         btnComponents.Size = New Size(120, 32)
-        btnComponents.Text = "Components"
+        btnComponents.Text = "Components & settings"
+        btnComponents.UseMnemonic = False
         btnComponents.UseVisualStyleBackColor = False
         '
         ' btnUpdate
@@ -229,7 +230,7 @@ Partial Class Form1
         btnCompare.Location = New Point(486, 10)
         btnCompare.Name = "btnCompare"
         btnCompare.Size = New Size(150, 32)
-        btnCompare.Text = "Compare subtitles…"
+        btnCompare.Text = "Compare subtitles"
         btnCompare.UseVisualStyleBackColor = False
         '
         ' pnlList
@@ -303,9 +304,9 @@ Partial Class Form1
         '
         tblOptions.ColumnCount = 4
         tblOptions.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 120.0F))
-        tblOptions.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
+        tblOptions.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 58.0F))
         tblOptions.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 120.0F))
-        tblOptions.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
+        tblOptions.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 42.0F))
         tblOptions.Controls.Add(lblSource, 0, 0)
         tblOptions.Controls.Add(cmbSource, 1, 0)
         tblOptions.Controls.Add(lblTarget, 2, 0)

@@ -31,14 +31,14 @@ Public Class AppSettings
     Public Property ContextTranslation As Boolean = True
     ''' <summary>Re-wrap long lines and fix too-short / overlapping display times.</summary>
     ''' <summary>Remove texts for the hearing impaired: [MUSIC], (laughs), JOHN:, ♪ lyrics ♪.</summary>
-    Public Property RemoveHearingImpaired As Boolean = False
+    Public Property RemoveHearingImpaired As Boolean = True
     Public Property FixFormatting As Boolean = True
     Public Property MaxLineLength As Integer = 42
 
     ''' <summary>Write the translation into the original subtitle file instead of creating "Movie.el.srt".</summary>
     Public Property ReplaceOriginal As Boolean = True
     ''' <summary>Settings format version (used to apply new defaults once).</summary>
-    Public Property ConfigVersion As Integer = 2
+    Public Property ConfigVersion As Integer = 3
     ''' <summary>Re-create output files that already exist.</summary>
     Public Property OverwriteExisting As Boolean = False
 
@@ -76,6 +76,10 @@ Public Class AppSettings
         If s.ConfigVersion < 2 Then
             s.ReplaceOriginal = True ' 1.4.1: replacing the original subtitle file is the default again
             s.ConfigVersion = 2
+        End If
+        If s.ConfigVersion < 3 Then
+            s.RemoveHearingImpaired = True ' 1.5.1: removing hearing-impaired texts is on by default
+            s.ConfigVersion = 3
         End If
         s.Normalize()
         Return s

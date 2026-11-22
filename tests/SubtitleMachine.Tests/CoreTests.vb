@@ -429,6 +429,29 @@ Public Class DefaultGlossaryTests
     Public Sub ReplaceOriginal_IsDefaultAndMigrated()
         Assert.True(New AppSettings().ReplaceOriginal)
     End Sub
+
+    <Fact>
+    Public Sub HearingImpaired_IsOnByDefault()
+        Assert.True(New AppSettings().RemoveHearingImpaired)
+    End Sub
+
+    <Fact>
+    Public Sub StarterGlossary_HasNamesAndNoDuplicates()
+        Dim g = Glossary.Parse(Glossary.Template)
+        Assert.True(g.Entries.Count > 200)
+        Dim dupes = g.Entries.GroupBy(Function(e) (If(e.Language, "*"), e.Source.ToLowerInvariant())).Where(Function(x) x.Count() > 1).Select(Function(x) x.Key.Item2).ToList()
+        Assert.Empty(dupes)
+        Dim el = Languages.Find("el")
+        Assert.Equal("Τζον", g.ForText("John, wait!", el).Single().Target)
+        Assert.Equal("Ένταλμα έρευνας", g.ForText("We have a search warrant.", el).OrderByDescending(Function(e) e.Source.Length).First().Target)
+        Assert.Equal("Nikos", g.ForText("Νίκο, έλα!", Languages.Find("en")).Single().Target)
+    End Sub
+
+    <Fact>
+    Public Sub OldUneditedGlossary_IsRecognised()
+        Assert.False(Glossary.IsUneditedOldTemplate(Glossary.Template))
+        Assert.False(Glossary.IsUneditedOldTemplate("Nick = Νίκος"))
+    End Sub
 End Class
 
 Public Class CleanerTests

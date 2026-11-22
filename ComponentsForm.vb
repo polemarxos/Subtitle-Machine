@@ -483,7 +483,7 @@ Public Class ComponentsForm
 
     Protected Overrides Sub OnFormClosing(e As FormClosingEventArgs)
         If _cts IsNot Nothing Then
-            If MessageBox.Show(Me, Loc.Tr("A download is in progress. Cancel it and close?"), Loc.Tr("Components"), MessageBoxButtons.YesNo, MessageBoxIcon.Question) = DialogResult.No Then
+            If MessageBox.Show(Me, Loc.Tr("A download is in progress. Cancel it and close?"), Loc.Tr("Components & settings"), MessageBoxButtons.YesNo, MessageBoxIcon.Question) = DialogResult.No Then
                 e.Cancel = True
                 Return
             End If

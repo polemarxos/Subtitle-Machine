@@ -92,7 +92,7 @@ Public Class Form1
             Loc.Tr("Unticked (normal): Movie.el.srt is left as it is and the file is skipped – fast, nothing is lost.") & vbCrLf &
             Loc.Tr("Ticked: everything is made again from the start and the old files are replaced.") & vbCrLf & vbCrLf &
             Loc.Tr("Tick it after changing the AI model, the glossary or the Whisper model, or when a result was bad."))
-        toolTip.SetToolTip(cmbModel, Loc.Tr("Google TranslateGemma, running locally with llama.cpp.") & vbCrLf & Loc.Tr("Automatic chooses the size that fits your graphics card."))
+        toolTip.SetToolTip(cmbModel, Loc.Tr("Google TranslateGemma, running locally with llama.cpp.") & vbCrLf & Loc.Tr("Automatic chooses the size that fits your graphics card.") & vbCrLf & Loc.Tr("✓ = already downloaded"))
         toolTip.SetToolTip(cmbSubSource, Loc.Tr("Embedded: use subtitles inside the video (text, or image subtitles read with OCR).") & vbCrLf &
                                          Loc.Tr("Audio: always create the subtitles from the speech with Whisper."))
         toolTip.SetToolTip(btnTargets, Loc.Tr("Choose one or more languages – one subtitle file is created per language."))
@@ -138,7 +138,7 @@ Public Class Form1
         cmbModel.Items.Clear()
         Dim rec = HardwareInfo.RecommendedTranslateSize()
         Dim recInfo = TranslateModelComponent.Sizes.First(Function(x) x.Tag = rec)
-        cmbModel.Items.Add(New ModelChoice With {.Size = "auto", .Caption = Loc.Tr("Automatic – TranslateGemma {0} for your GPU ({1}){2}", rec.ToUpperInvariant(), recInfo.Download, Downloaded(rec))})
+        cmbModel.Items.Add(New ModelChoice With {.Size = "auto", .Caption = Loc.Tr("Automatic – TranslateGemma {0} – {1}, {2}{3}", rec.ToUpperInvariant(), recInfo.Download, recInfo.Vram, Downloaded(rec))})
         For Each m In TranslateModelComponent.Sizes
             cmbModel.Items.Add(New ModelChoice With {.Size = m.Tag, .Caption = Loc.Tr("TranslateGemma {0} – {1}, {2}{3}", m.Tag.ToUpperInvariant(), m.Download, m.Vram, Downloaded(m.Tag))})
         Next
@@ -147,7 +147,7 @@ Public Class Form1
     End Sub
 
     Private Function Downloaded(size As String) As String
-        Return If(File.Exists(TranslateModelComponent.ModelPath(size)), "  ✓ downloaded", "")
+        Return If(File.Exists(TranslateModelComponent.ModelPath(size)), "  ✓", "")
     End Function
 
     ' ----- Target languages (multi-select) -----
@@ -248,7 +248,7 @@ Public Class Form1
         End Using
         PopulateModelCombo()
         ApplyTheme()
-        lblStatus.Text = If(DependencyManager.MissingRequired(_settings).Count = 0, Loc.Tr("Ready"), Loc.Tr("Some components are missing – click Components."))
+        lblStatus.Text = If(DependencyManager.MissingRequired(_settings).Count = 0, Loc.Tr("Ready"), Loc.Tr("Some components are missing – click Components & settings."))
     End Sub
 
     ''' <summary>Checks GitHub; downloads a newer version in the background. It is installed when the app closes (or on "Restart now").</summary>
@@ -297,7 +297,7 @@ Public Class Form1
                     Catch
                     End Try
                 Next
-                If outdated.Count > 0 AndAlso _cts Is Nothing Then lblStatus.Text = Loc.Tr("Updates available: {0} – click Components.", String.Join(", ", outdated))
+                If outdated.Count > 0 AndAlso _cts Is Nothing Then lblStatus.Text = Loc.Tr("Updates available: {0} – click Components & settings.", String.Join(", ", outdated))
             End Using
         Catch ex As Exception
             Logger.Log("Component update check failed: " & ex.Message)

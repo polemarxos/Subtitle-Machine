@@ -23,12 +23,12 @@ Everything it needs is **downloaded automatically from the official sources** an
 - NVIDIA (CUDA), AMD / Intel (Vulkan) or CPU, detected automatically
 - Reads non-UTF-8 subtitle files (e.g. Windows-1253 Greek) and writes UTF-8
 - **Video output:** add the new subtitles into an MKV copy as extra tracks (no re-encoding, language tags set) and/or make an MP4 copy with the subtitles **burned into the picture** (uses the GPU's video encoder when available)
-- **Glossary:** names and terms that must always be translated the same way, or never translated (*Components & settings › Edit glossary*). A starter glossary for English ↔ Greek is created on first start.
+- **Glossary:** names and terms that must always be translated the same way, or never translated (*Components & settings › Edit glossary*). A starter glossary for English ↔ Greek (about 250 entries: agencies and brands kept as they are, ranks, courtroom and police terms, holidays, common first names in both directions) is created on first start.
 - **Resume:** after Stop, a crash or a power cut, the next Start continues where the translation stopped
 - **Subtitle editor:** double-click a finished file to review original and translation side by side, fix text or times, re-translate selected lines and save
 - **Compare subtitles:** two files side by side, matched by time, with changed words marked, timing differences in orange, and lines that exist in only one file in red/green; *Show only differences* and *Next difference* (F3)
 - **When finished:** do nothing, sleep, hibernate or shut down (with a 60-second countdown you can cancel)
-- **Hearing-impaired cleanup:** removes [MUSIC], (laughs), speaker names like `JOHN:` and ♪ song lyrics ♪ before translating (optional)
+- **Hearing-impaired cleanup:** removes [MUSIC], (laughs), speaker names like `JOHN:` and ♪ song lyrics ♪ before translating (on by default)
 - **Greek or English interface**, chosen automatically from Windows or in *Components & settings*
 - **Light, dark or Windows theme**, and a Windows notification with sound when a batch is done
 
@@ -94,7 +94,7 @@ Stored next to the exe (or in `%LocalAppData%\Subtitle Machine` if that folder i
 | `NotifyWhenDone` | `true` | Notification and sound when a batch is finished |
 | `ReplaceOriginal` | `true` | Write the translation into the original subtitle file (one target language only) |
 | `OverwriteExisting` | `false` | *Redo files that are already finished.* Off: files made in an earlier run (e.g. `Movie.el.srt`) are kept and skipped. On: everything is made again and the old files are replaced – useful after changing the model or glossary |
-| `RemoveHearingImpaired` | `false` | Remove [music], (laughs), JOHN:, ♪ lyrics ♪ before translating |
+| `RemoveHearingImpaired` | `true` | Remove [music], (laughs), JOHN:, ♪ lyrics ♪ before translating |
 | `UiLanguage` | `auto` | Interface language: `auto` (like Windows), `en`, `el` |
 | `AutoUpdateApp` | `true` | Update the app automatically from GitHub |
 | `CheckComponentUpdates` | `true` | Check component updates on startup |
