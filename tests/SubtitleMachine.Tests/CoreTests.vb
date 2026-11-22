@@ -302,3 +302,75 @@ Public Class ReleaseAssetTests
         Assert.Equal("b1 (vulkan)", LlamaEngineComponent.PickLlamaBuild(r, "cuda").Version)
     End Sub
 End Class
+
+Public Class GlossaryTests
+    Private Shared ReadOnly G As Glossary = Glossary.Parse(
+        "# comment" & vbLf & "Nick = Nick" & vbLf & "Winterfell =" & vbLf & "[el]" & vbLf & "Nick = Νίκος" & vbLf & "Ministry of Magic = Υπουργείο Μαγείας" & vbLf & "[de]" & vbLf & "Lord = Herr")
+
+    <Fact>
+    Public Sub Parse_ReadsSectionsAndEmptyTranslations()
+        Assert.Equal(5, G.Entries.Count)
+        Assert.Equal("Winterfell", G.Entries(1).Target)       ' empty → keep as is
+        Assert.Equal("el", G.Entries(2).Language)
+    End Sub
+
+    <Fact>
+    Public Sub ForText_PrefersLanguageSpecificAndMatchesWholeWords()
+        Dim el = G.ForText("He left with Nick to Winterfell.", Languages.Find("el"))
+        Assert.Equal(2, el.Count)
+        Assert.Equal("Νίκος", el.First(Function(e) e.Source = "Nick").Target)
+        Dim en = G.ForText("Nickname at the ministry of magic", Languages.Find("en"))
+        Assert.Empty(en)                                     ' "Nickname" is not "Nick"; Ministry entry is Greek-only
+        Assert.Single(G.ForText("lord", Languages.Find("de")))  ' case-insensitive
+    End Sub
+
+    <Fact>
+    Public Sub Prompt_ContainsOnlyGivenTerms()
+        Dim terms = G.ForText("Nick is here", Languages.Find("el"))
+        Dim p = TranslationPrompt.Build("Nick is here", Languages.Find("en"), Languages.Find("el"), terms)
+        Assert.Contains("Always use these translations: ""Nick"" = ""Νίκος"".", p)
+        Assert.DoesNotContain("Always use", TranslationPrompt.Build("Hi", Languages.Find("en"), Languages.Find("el")))
+    End Sub
+End Class
+
+Public Class ResumeAndSettingsTests
+    <Fact>
+    Public Sub Progress_IsReusedOnlyForSameSourceAndModel()
+        Dim dir = Path.Combine(Path.GetTempPath(), "sm_prog_" & Guid.NewGuid().ToString("N"))
+        Directory.CreateDirectory(dir)
+        Dim src = Path.Combine(dir, "a.en.srt")
+        File.WriteAllText(src, "1" & vbLf & "00:00:01,000 --> 00:00:02,000" & vbLf & "Hi")
+        Dim outp = Path.Combine(dir, "a.el.srt")
+        Dim el = Languages.Find("el")
+
+        Dim p1 = TranslationProgress.Open(outp, src, el, "4B")
+        p1.Add(0, "Γεια")
+        p1.Flush()
+        Assert.Equal("Γεια", TranslationProgress.Open(outp, src, el, "4B").Done(0))
+        Assert.Empty(TranslationProgress.Open(outp, src, el, "12B").Done)   ' other model → start over
+        Dim p2 = TranslationProgress.Open(outp, src, el, "4B")
+        Assert.Empty(p2.Done)                                                ' the 12B open removed the stale file
+        p2.Add(0, "x") : p2.Flush() : p2.Complete()
+        Assert.False(File.Exists(TranslationProgress.ProgressPath(outp)))
+    End Sub
+
+    <Fact>
+    Public Sub Normalize_NewOptions()
+        Dim s As New AppSettings With {.VideoOutput = "avi", .Theme = "pink", .WhenDone = "reboot"}
+        s.Normalize()
+        Assert.Equal("none", s.VideoOutput)
+        Assert.Equal("system", s.Theme)
+        Assert.Equal("nothing", s.WhenDone)
+    End Sub
+
+    <Fact>
+    Public Sub WhenDone_IsNeverSaved()
+        Dim json = Text.Json.JsonSerializer.Serialize(New AppSettings With {.WhenDone = "shutdown"})
+        Assert.DoesNotContain("""WhenDone""", json)
+    End Sub
+
+    <Fact>
+    Public Sub Encoders_AlwaysEndWithCpuFallback()
+        Assert.StartsWith("-c:v libx264", VideoOutput.EncoderCandidates().Last())
+    End Sub
+End Class

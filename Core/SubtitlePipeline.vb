@@ -9,8 +9,10 @@ Public Class TaskItem
     Public Property IsVideo As Boolean
     Public Property Status As String = "Pending"
     Public Property OutputPath As String
-    ''' <summary>All files written for this item (one per target language).</summary>
+    ''' <summary>All files written for this item (one per target language, plus videos).</summary>
     Public Property Outputs As New List(Of String)
+    ''' <summary>The subtitle file the translations were made from (for the editor).</summary>
+    Public Property SourcePath As String
 End Class
 
 ''' <summary>Video / audio / SRT → (extract | OCR | transcribe) → translate into every target language.</summary>
@@ -30,6 +32,7 @@ Public Class SubtitlePipeline
     Private ReadOnly _translator As ITranslator
     Private ReadOnly _targets As List(Of LanguageInfo)
     Private ReadOnly _sourceSetting As LanguageInfo ' Nothing = auto
+    Private ReadOnly _glossary As Glossary
 
     Public Sub New(settings As AppSettings, translator As ITranslator)
         _s = settings
@@ -37,6 +40,7 @@ Public Class SubtitlePipeline
         _targets = settings.Targets()
         If _targets.Count = 0 Then _targets.Add(Languages.Find("en"))
         _sourceSetting = If(settings.TranscribeLanguage = "auto", Nothing, Languages.Find(settings.TranscribeLanguage))
+        _glossary = Glossary.Load()
     End Sub
 
     Public Shared Function IsSupportedFile(path As String) As Boolean
@@ -62,14 +66,19 @@ Public Class SubtitlePipeline
         Dim source = Await GetSourceAsync(item, streams, report, ct)
         Dim notes As New List(Of String)
         If source.Note IsNot Nothing Then notes.Add(source.Note)
+        item.SourcePath = source.Path
+        Dim subtitleFiles As New List(Of (Path As String, Language As LanguageInfo))
+        Dim wantsVideo = item.IsVideo AndAlso Not isAudioFile AndAlso _s.VideoOutput <> "none"
+        Dim videoShare = If(wantsVideo, 0.3, 0.0) ' part of the progress bar used by MKV / burn-in
 
         ' 2) One output per target language.
-        Dim translateFrom = If(source.Path = item.FilePath, 0.0, 0.4)
+        Dim translateFrom = If(source.Path = item.FilePath, 0.0, 0.4) * (1 - videoShare)
+        Dim translateEnd = 1 - videoShare
         For ti = 0 To _targets.Count - 1
             ct.ThrowIfCancellationRequested()
             Dim target = _targets(ti)
-            Dim baseFrac = translateFrom + (1 - translateFrom) * ti / _targets.Count
-            Dim span = (1 - translateFrom) / _targets.Count
+            Dim baseFrac = translateFrom + (translateEnd - translateFrom) * ti / _targets.Count
+            Dim span = (translateEnd - translateFrom) / _targets.Count
 
             Dim outPath As String
             If ReplaceMode() Then
@@ -82,6 +91,7 @@ Public Class SubtitlePipeline
                 If File.Exists(outPath) AndAlso Not _s.OverwriteExisting Then
                     notes.Add($"{target.Code}: exists")
                     item.Outputs.Add(outPath)
+                    subtitleFiles.Add((outPath, target))
                     Continue For
                 End If
             End If
@@ -94,6 +104,7 @@ Public Class SubtitlePipeline
                 If _s.FixFormatting Then SrtFile.Save(outPath, SubtitleFormatter.Apply(SrtFile.Load(outPath), _s.MaxLineLength))
                 notes.Add($"{target.Code}: from video")
                 item.Outputs.Add(outPath)
+                subtitleFiles.Add((outPath, target))
                 Continue For
             End If
 
@@ -103,6 +114,7 @@ Public Class SubtitlePipeline
                 If _s.FixFormatting Then SrtFile.Save(outPath, SubtitleFormatter.Apply(SrtFile.Load(outPath), _s.MaxLineLength))
                 notes.Add($"{target.Code}: already {target.Name}")
                 item.Outputs.Add(outPath)
+                subtitleFiles.Add((outPath, target))
                 Continue For
             End If
 
@@ -110,7 +122,39 @@ Public Class SubtitlePipeline
                                      Sub(done, total) report($"{name}: translating {done}/{total} lines → {target.Name}", baseFrac + span * done / Math.Max(1, total)),
                                      ct)
             item.Outputs.Add(outPath)
+            subtitleFiles.Add((outPath, target))
         Next
+
+        ' 3) Video outputs.
+        If wantsVideo AndAlso subtitleFiles.Count > 0 Then
+            Dim mkv = _s.VideoOutput = "mkv" OrElse _s.VideoOutput = "both"
+            Dim burn = _s.VideoOutput = "burn" OrElse _s.VideoOutput = "both"
+            Dim vStart = 1 - videoShare
+            Dim vSpan = videoShare / If(mkv AndAlso burn, 2, 1)
+            If mkv Then
+                ct.ThrowIfCancellationRequested()
+                report($"{name}: adding subtitles to MKV", vStart)
+                Dim outMkv = Await VideoOutput.MuxIntoMkvAsync(item.FilePath, subtitleFiles, Sub(f) report($"{name}: adding subtitles to MKV {f:P0}", vStart + vSpan * f), ct)
+                item.Outputs.Add(outMkv)
+                vStart += vSpan
+                notes.Add("MKV")
+            End If
+            If burn Then
+                ct.ThrowIfCancellationRequested()
+                Dim first = subtitleFiles(0)
+                report($"{name}: burning {first.Language.Name} subtitles into video", vStart)
+                Dim outMp4 = Await VideoOutput.BurnInAsync(item.FilePath, first.Path, first.Language, Sub(f) report($"{name}: burning subtitles {f:P0}", vStart + vSpan * f), ct)
+                item.Outputs.Add(outMp4)
+                notes.Add("burned-in")
+            End If
+            If mkv AndAlso Not _s.KeepSrtFiles Then
+                For Each f In subtitleFiles
+                    If Not String.Equals(f.Path, item.SourcePath, StringComparison.OrdinalIgnoreCase) Then
+                        Try : File.Delete(f.Path) : item.Outputs.Remove(f.Path) : Catch : End Try
+                    End If
+                Next
+            End If
+        End If
 
         item.OutputPath = item.Outputs.FirstOrDefault()
         item.Status = "Completed" & If(notes.Count > 0, " (" & String.Join(", ", notes) & ")", "")
@@ -211,8 +255,20 @@ Public Class SubtitlePipeline
 
         ' Groups of consecutive cues (context) or single cues.
         Dim size = If(_s.ContextTranslation, ContextBatchSize, 1)
-        Dim groups = todo.Select(Function(idx, n) (idx, n \ size)).GroupBy(Function(x) x.Item2).Select(Function(g) g.Select(Function(x) x.idx).ToList()).ToList()
         Dim results = CType(texts.Clone(), String())
+
+        ' Resume: lines finished in an earlier, interrupted run are taken from the progress file.
+        Dim progress = TranslationProgress.Open(outputSrt, inputSrt, target, _translator.DisplayName & If(_s.ContextTranslation, "|ctx", ""))
+        For Each kv In progress.Done
+            If kv.Key >= 0 AndAlso kv.Key < results.Length Then results(kv.Key) = kv.Value
+        Next
+        If progress.Done.Count > 0 Then
+            Logger.Log($"Resuming {Path.GetFileName(outputSrt)}: {progress.Done.Count} lines already translated")
+            todo = todo.Where(Function(i) Not progress.Done.ContainsKey(i)).ToList()
+            done = total - todo.Count
+            onProgress(done, total)
+        End If
+        Dim groups = todo.Select(Function(idx, n) (idx, n \ size)).GroupBy(Function(x) x.Item2).Select(Function(g) g.Select(Function(x) x.idx).ToList()).ToList()
         Dim sem As New SemaphoreSlim(Math.Max(1, _translator.MaxParallel))
 
         Dim work = groups.Select(Async Function(g)
@@ -221,13 +277,18 @@ Public Class SubtitlePipeline
                                          Dim translated = Await TranslateGroupAsync(g.Select(Function(i) texts(i)).ToList(), sourceLang, target, ct)
                                          For k = 0 To g.Count - 1
                                              results(g(k)) = translated(k)
+                                             progress.Add(g(k), translated(k))
                                          Next
                                      Finally
                                          sem.Release()
                                      End Try
                                      onProgress(Interlocked.Add(done, g.Count), total)
                                  End Function).ToList()
-        Await Task.WhenAll(work)
+        Try
+            Await Task.WhenAll(work)
+        Finally
+            progress.Flush() ' keep what was translated, also when stopped or failed
+        End Try
         ct.ThrowIfCancellationRequested()
 
         For i = 0 To cues.Count - 1
@@ -235,13 +296,16 @@ Public Class SubtitlePipeline
         Next
         Dim final = If(_s.FixFormatting, SubtitleFormatter.Apply(cues, _s.MaxLineLength), cues)
         SrtFile.Save(outputSrt, final)
+        progress.Complete()
     End Function
 
     ''' <summary>Translates several lines together; falls back to one-by-one if the model breaks the numbering.</summary>
     Private Async Function TranslateGroupAsync(lines As List(Of String), sourceLang As LanguageInfo, target As LanguageInfo, ct As CancellationToken) As Task(Of List(Of String))
         If lines.Count > 1 Then
             Try
-                Dim raw = Await WithRetryAsync(Function() _translator.TranslateAsync(TranslationPrompt.JoinBatch(lines), sourceLang, target, ct), ct)
+                Dim joined = TranslationPrompt.JoinBatch(lines)
+                Dim terms = _glossary.ForText(joined, target)
+                Dim raw = Await WithRetryAsync(Function() _translator.TranslateAsync(joined, sourceLang, target, ct, terms), ct)
                 Dim split = TranslationPrompt.SplitBatch(raw, lines.Count)
                 If split IsNot Nothing Then Return split
                 Logger.Log("Context batch mismatch – translating these lines one by one.")
@@ -253,7 +317,7 @@ Public Class SubtitlePipeline
         For Each l In lines
             Dim raw As String = Nothing
             Try
-                raw = Await WithRetryAsync(Function() _translator.TranslateAsync(l, sourceLang, target, ct), ct)
+                raw = Await WithRetryAsync(Function() _translator.TranslateAsync(l, sourceLang, target, ct, _glossary.ForText(l, target)), ct)
             Catch ex As HttpRequestException
                 Logger.Log("Line left untranslated: " & ex.Message)
             End Try

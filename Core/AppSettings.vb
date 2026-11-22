@@ -38,6 +38,18 @@ Public Class AppSettings
     ''' <summary>Re-create output files that already exist.</summary>
     Public Property OverwriteExisting As Boolean = False
 
+    ''' <summary>"none", "mkv" (add subtitles into an MKV copy), "burn" (burned-in MP4 copy) or "both".</summary>
+    Public Property VideoOutput As String = "none"
+    ''' <summary>Keep the .srt files after adding them into the MKV.</summary>
+    Public Property KeepSrtFiles As Boolean = True
+    ''' <summary>After a batch: "nothing", "sleep", "hibernate" or "shutdown".</summary>
+    <Text.Json.Serialization.JsonIgnore>
+    Public Property WhenDone As String = "nothing"
+    ''' <summary>"system", "dark" or "light".</summary>
+    Public Property Theme As String = "system"
+    ''' <summary>Windows notification + sound when a batch finishes.</summary>
+    Public Property NotifyWhenDone As Boolean = True
+
     Public Property AutoUpdateApp As Boolean = True
     Public Property CheckComponentUpdates As Boolean = True
 
@@ -80,6 +92,9 @@ Public Class AppSettings
         If Not {"auto", "cuda", "vulkan", "cpu"}.Contains(If(GpuBackend, "").ToLowerInvariant()) Then GpuBackend = "auto"
         If String.IsNullOrWhiteSpace(WhisperModel) Then WhisperModel = "large-v3-turbo"
         If MaxLineLength < 20 OrElse MaxLineLength > 80 Then MaxLineLength = 42
+        If Not {"none", "mkv", "burn", "both"}.Contains(VideoOutput) Then VideoOutput = "none"
+        If Not {"nothing", "sleep", "hibernate", "shutdown"}.Contains(WhenDone) Then WhenDone = "nothing"
+        If Not {"system", "dark", "light"}.Contains(Theme) Then Theme = "system"
     End Sub
 
     Public Sub Save()

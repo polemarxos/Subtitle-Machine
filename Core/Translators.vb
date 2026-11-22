@@ -14,33 +14,46 @@ Public Interface ITranslator
     ReadOnly Property MaxParallel As Integer
     Function PrepareAsync(progress As IProgress(Of StatusUpdate), ct As CancellationToken) As Task
     ''' <summary>Translates one piece of text (may contain line breaks).</summary>
-    Function TranslateAsync(text As String, source As LanguageInfo, target As LanguageInfo, ct As CancellationToken) As Task(Of String)
+    Function TranslateAsync(text As String, source As LanguageInfo, target As LanguageInfo, ct As CancellationToken,
+                            Optional terms As IList(Of Glossary.Entry) = Nothing) As Task(Of String)
 End Interface
 
 ''' <summary>The official TranslateGemma prompt (same as ollama.com/library/translategemma) and helpers.</summary>
 Public Module TranslationPrompt
 
-    Public Function Build(text As String, source As LanguageInfo, target As LanguageInfo) As String
+    Public Function Build(text As String, source As LanguageInfo, target As LanguageInfo, Optional terms As IList(Of Glossary.Entry) = Nothing) As String
         Dim t = $"{target.Name} ({target.Code})"
         Dim sb As New StringBuilder()
         If source IsNot Nothing Then
             Dim s = $"{source.Name} ({source.Code})"
             sb.Append($"You are a professional {s} to {t} translator. Your goal is to accurately convey the meaning and nuances of the original {source.Name} text while adhering to {target.Name} grammar, vocabulary, and cultural sensitivities.")
             sb.Append(vbLf)
-            sb.Append($"Produce only the {target.Name} translation, without any additional explanations or commentary. Please translate the following {source.Name} text into {target.Name}:")
+            sb.Append($"Produce only the {target.Name} translation, without any additional explanations or commentary.")
+            AppendGlossary(sb, terms)
+            sb.Append($" Please translate the following {source.Name} text into {target.Name}:")
         Else
             sb.Append($"You are a professional translator into {t}. Your goal is to accurately convey the meaning and nuances of the original text while adhering to {target.Name} grammar, vocabulary, and cultural sensitivities.")
             sb.Append(vbLf)
-            sb.Append($"Produce only the {target.Name} translation, without any additional explanations or commentary. Please translate the following text into {target.Name}:")
+            sb.Append($"Produce only the {target.Name} translation, without any additional explanations or commentary.")
+            AppendGlossary(sb, terms)
+            sb.Append($" Please translate the following text into {target.Name}:")
         End If
         sb.Append(vbLf).Append(vbLf).Append(vbLf) ' two blank lines before the text
         sb.Append(text)
         Return sb.ToString()
     End Function
 
+    ''' <summary>Tested with TranslateGemma: one sentence listing the required translations is followed reliably (and declined correctly).</summary>
+    Private Sub AppendGlossary(sb As StringBuilder, terms As IList(Of Glossary.Entry))
+        If terms Is Nothing OrElse terms.Count = 0 Then Return
+        sb.Append(" Always use these translations: ")
+        sb.Append(String.Join("; ", terms.Select(Function(e) $"""{e.Source}"" = ""{e.Target}""")))
+        sb.Append(".")
+    End Sub
+
     ''' <summary>Gemma chat format for raw completion (does not depend on the GGUF's embedded chat template).</summary>
-    Public Function BuildGemmaRaw(text As String, source As LanguageInfo, target As LanguageInfo) As String
-        Return "<start_of_turn>user" & vbLf & Build(text, source, target) & "<end_of_turn>" & vbLf & "<start_of_turn>model" & vbLf
+    Public Function BuildGemmaRaw(text As String, source As LanguageInfo, target As LanguageInfo, Optional terms As IList(Of Glossary.Entry) = Nothing) As String
+        Return "<start_of_turn>user" & vbLf & Build(text, source, target, terms) & "<end_of_turn>" & vbLf & "<start_of_turn>model" & vbLf
     End Function
 
     Public Function Clean(output As String, original As String) As String
@@ -197,9 +210,10 @@ Public Class LlamaTranslator
         Logger.Log($"llama-server ready in {sw.Elapsed.TotalSeconds:0.0}s")
     End Function
 
-    Public Async Function TranslateAsync(text As String, source As LanguageInfo, target As LanguageInfo, ct As CancellationToken) As Task(Of String) Implements ITranslator.TranslateAsync
+    Public Async Function TranslateAsync(text As String, source As LanguageInfo, target As LanguageInfo, ct As CancellationToken,
+                                         Optional terms As IList(Of Glossary.Entry) = Nothing) As Task(Of String) Implements ITranslator.TranslateAsync
         Dim body = JsonSerializer.Serialize(New With {
-            .prompt = TranslationPrompt.BuildGemmaRaw(text, source, target),
+            .prompt = TranslationPrompt.BuildGemmaRaw(text, source, target, terms),
             .n_predict = Math.Max(256, text.Length * 3),
             .temperature = 0.0,
             .top_k = 1,

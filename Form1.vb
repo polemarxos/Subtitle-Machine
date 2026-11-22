@@ -17,12 +17,7 @@ Public Class Form1
     Private _translator As ITranslator
     Private _loadingUi As Boolean
 
-    Private Shared ReadOnly ColHeaderBg As Color = Color.FromArgb(45, 45, 48)
-    Private Shared ReadOnly ColSelected As Color = Color.FromArgb(0, 84, 140)
-    Private Shared ReadOnly ColOk As Color = Color.FromArgb(130, 210, 130)
-    Private Shared ReadOnly ColWarn As Color = Color.FromArgb(240, 200, 90)
-    Private Shared ReadOnly ColErr As Color = Color.FromArgb(240, 120, 110)
-    Private Shared ReadOnly ColBusy As Color = Color.FromArgb(100, 180, 255)
+    Private WithEvents _notify As New NotifyIcon()
 
     ' ----- Constructor & Debug Console -----
     Public Sub New()
@@ -73,6 +68,24 @@ Public Class Form1
         toolTip.SetToolTip(cmbSubSource, "Embedded: use subtitles inside the video (text, or image subtitles read with OCR)." & vbCrLf &
                                          "Audio: always create the subtitles from the speech with Whisper.")
         toolTip.SetToolTip(btnTargets, "Choose one or more languages – one subtitle file is created per language.")
+        toolTip.SetToolTip(cmbVideoOut, "MKV: the new subtitles are added to a copy of the video as extra tracks (fast, no quality loss)." & vbCrLf &
+                                        "Burned-in: an MP4 copy with the subtitles drawn on the picture (first language; takes longer).")
+
+        _loadingUi = True
+        cmbVideoOut.Items.AddRange(New Object() {"Subtitle files only", "Also add subtitles into the video (MKV)", "Also burn subtitles into the picture (MP4)", "Both MKV and burned-in MP4"})
+        cmbVideoOut.SelectedIndex = Array.IndexOf({"none", "mkv", "burn", "both"}, _settings.VideoOutput)
+        cmbWhenDone.Items.AddRange(New Object() {"Do nothing", "Sleep", "Hibernate", "Shut down"})
+        cmbWhenDone.SelectedIndex = 0
+        _loadingUi = False
+
+        ' Theme
+        btnAddFiles.Tag = "accent" : btnStart.Tag = "accent" : btnStop.Tag = "danger"
+        lblGpu.Tag = "muted" : lblVersion.Tag = "muted" : lblDropHint.Tag = "muted"
+        pnlHeader.Tag = "panel" : pnlFooter.Tag = "panel" : pnlUpdate.Tag = "keep"
+        ApplyTheme()
+
+        _notify.Icon = Icon
+        _notify.Text = "Subtitle Machine"
 
         ' Missing tools → offer to download everything.
         Dim missing = DependencyManager.MissingRequired(_settings)
@@ -112,8 +125,8 @@ Public Class Form1
     Private Sub BuildTargetPicker()
         _targetList.CheckOnClick = True
         _targetList.BorderStyle = BorderStyle.None
-        _targetList.BackColor = Color.FromArgb(45, 45, 48)
-        _targetList.ForeColor = Color.White
+        _targetList.BackColor = Theme.Current.Control
+        _targetList.ForeColor = Theme.Current.Text
         _targetList.Size = New Size(240, 320)
         For Each l In Languages.All
             _targetList.Items.Add(l, _settings.TargetLanguages.Contains(l.Code))
@@ -203,6 +216,7 @@ Public Class Form1
             f.ShowDialog(Me)
         End Using
         PopulateModelCombo()
+        ApplyTheme()
         lblStatus.Text = If(DependencyManager.MissingRequired(_settings).Count = 0, "Ready", "Some components are missing – click Components.")
     End Sub
 
@@ -295,18 +309,18 @@ Public Class Form1
     Private Sub Files_DragEnter(sender As Object, e As DragEventArgs) Handles MyBase.DragEnter, lvTasks.DragEnter, lblDropHint.DragEnter
         If _cts Is Nothing AndAlso e.Data.GetDataPresent(DataFormats.FileDrop) Then
             e.Effect = DragDropEffects.Copy
-            lvTasks.BackColor = Color.FromArgb(36, 44, 54) ' highlight drop zone
+            lvTasks.BackColor = Theme.Current.Selected ' highlight drop zone
         Else
             e.Effect = DragDropEffects.None
         End If
     End Sub
 
     Private Sub Files_DragLeave(sender As Object, e As EventArgs) Handles MyBase.DragLeave, lvTasks.DragLeave, lblDropHint.DragLeave
-        lvTasks.BackColor = Color.FromArgb(30, 30, 30)
+        lvTasks.BackColor = Theme.Current.Back
     End Sub
 
     Private Sub Files_DragDrop(sender As Object, e As DragEventArgs) Handles MyBase.DragDrop, lvTasks.DragDrop, lblDropHint.DragDrop
-        lvTasks.BackColor = Color.FromArgb(30, 30, 30)
+        lvTasks.BackColor = Theme.Current.Back
         Dim paths = TryCast(e.Data.GetData(DataFormats.FileDrop), String())
         If paths IsNot Nothing Then AddPaths(paths)
     End Sub
@@ -374,7 +388,29 @@ Public Class Form1
         UpdateUiState()
     End Sub
 
-    Private Sub mnuOpenFolder_Click(sender As Object, e As EventArgs) Handles mnuOpenFolder.Click, lvTasks.DoubleClick
+    Private Sub lvTasks_DoubleClick(sender As Object, e As EventArgs) Handles lvTasks.DoubleClick
+        If lvTasks.SelectedItems.Count = 0 Then Return
+        If SubtitleEditorForm.CanEdit(DirectCast(lvTasks.SelectedItems(0).Tag, TaskItem)) Then mnuEdit.PerformClick() Else mnuOpenFolder.PerformClick()
+    End Sub
+
+    Private Sub ctxTasks_Opening(sender As Object, e As System.ComponentModel.CancelEventArgs) Handles ctxTasks.Opening
+        Dim item = If(lvTasks.SelectedItems.Count > 0, DirectCast(lvTasks.SelectedItems(0).Tag, TaskItem), Nothing)
+        mnuEdit.Enabled = _cts Is Nothing AndAlso SubtitleEditorForm.CanEdit(item)
+        mnuOpenFolder.Enabled = item IsNot Nothing
+        mnuRemove.Enabled = _cts Is Nothing AndAlso item IsNot Nothing
+    End Sub
+
+    Private Sub mnuEdit_Click(sender As Object, e As EventArgs) Handles mnuEdit.Click
+        If lvTasks.SelectedItems.Count = 0 OrElse _cts IsNot Nothing Then Return
+        Dim item = DirectCast(lvTasks.SelectedItems(0).Tag, TaskItem)
+        If Not SubtitleEditorForm.CanEdit(item) Then Return
+        Using f As New SubtitleEditorForm(_settings, item)
+            f.Icon = Icon
+            f.ShowDialog(Me)
+        End Using
+    End Sub
+
+    Private Sub mnuOpenFolder_Click(sender As Object, e As EventArgs) Handles mnuOpenFolder.Click
         If lvTasks.SelectedItems.Count = 0 Then Return
         Dim item = DirectCast(lvTasks.SelectedItems(0).Tag, TaskItem)
         Dim target = If(item.OutputPath IsNot Nothing AndAlso File.Exists(item.OutputPath), item.OutputPath, item.FilePath)
@@ -392,7 +428,7 @@ Public Class Form1
         Dim busy = _cts IsNot Nothing
         btnStart.Enabled = Not busy AndAlso Tasks.Count > 0
         btnStop.Enabled = busy
-        For Each c As Control In New Control() {btnAddFiles, btnAddFolder, btnRemove, btnClear, btnComponents, btnUpdate, cmbSource, btnTargets, cmbModel, cmbSubSource, chkOverwrite}
+        For Each c As Control In New Control() {btnAddFiles, btnAddFolder, btnRemove, btnClear, btnComponents, btnUpdate, cmbSource, btnTargets, cmbModel, cmbSubSource, chkOverwrite, cmbVideoOut}
             c.Enabled = Not busy
         Next
         chkReplaceOriginal.Enabled = Not busy AndAlso _settings IsNot Nothing AndAlso _settings.TargetLanguages.Count = 1
@@ -409,13 +445,14 @@ Public Class Form1
     End Sub
 
     Private Sub lvTasks_DrawColumnHeader(sender As Object, e As DrawListViewColumnHeaderEventArgs) Handles lvTasks.DrawColumnHeader
-        Using b As New SolidBrush(ColHeaderBg)
+        Dim pal = Theme.Current
+        Using b As New SolidBrush(pal.Panel)
             e.Graphics.FillRectangle(b, e.Bounds)
         End Using
         Dim r = e.Bounds
         r.Inflate(-6, 0)
-        TextRenderer.DrawText(e.Graphics, e.Header.Text, lvTasks.Font, r, Color.Silver, TextFormatFlags.VerticalCenter Or TextFormatFlags.Left Or TextFormatFlags.EndEllipsis)
-        Using p As New Pen(Color.FromArgb(62, 62, 66))
+        TextRenderer.DrawText(e.Graphics, e.Header.Text, lvTasks.Font, r, pal.Muted, TextFormatFlags.VerticalCenter Or TextFormatFlags.Left Or TextFormatFlags.EndEllipsis)
+        Using p As New Pen(pal.Border)
             e.Graphics.DrawLine(p, e.Bounds.Right - 1, e.Bounds.Top + 4, e.Bounds.Right - 1, e.Bounds.Bottom - 4)
         End Using
     End Sub
@@ -425,24 +462,25 @@ Public Class Form1
     End Sub
 
     Private Sub lvTasks_DrawSubItem(sender As Object, e As DrawListViewSubItemEventArgs) Handles lvTasks.DrawSubItem
-        Dim bg = If(e.Item.Selected, ColSelected, If(e.ItemIndex Mod 2 = 0, Color.FromArgb(30, 30, 30), Color.FromArgb(35, 35, 37)))
+        Dim pal = Theme.Current
+        Dim bg = If(e.Item.Selected, pal.Selected, If(e.ItemIndex Mod 2 = 0, pal.Back, pal.AltRow))
         Using b As New SolidBrush(bg)
             e.Graphics.FillRectangle(b, e.Bounds)
         End Using
-        Dim fg = Color.Gainsboro
+        Dim fg = pal.Text
         If e.ColumnIndex = 2 Then
             Dim s = e.SubItem.Text
             If s.StartsWith("Completed") OrElse s.StartsWith("Done") Then
-                fg = ColOk
+                fg = pal.Ok
             ElseIf s.StartsWith("Failed") Then
-                fg = ColErr
+                fg = pal.Err
             ElseIf s.StartsWith("Skipped") OrElse s.StartsWith("Cancelled") Then
-                fg = ColWarn
+                fg = pal.Warn
             ElseIf s <> "Pending" Then
-                fg = ColBusy
+                fg = pal.Busy
             End If
         ElseIf e.ColumnIndex = 1 OrElse e.ColumnIndex = 3 Then
-            fg = Color.FromArgb(160, 160, 160)
+            fg = pal.Muted
         End If
         Dim r = e.Bounds
         r.Inflate(-6, 0)
@@ -473,6 +511,7 @@ Public Class Form1
         UpdateUiState()
         progressBar.Value = 0
         Dim failed = 0
+        Dim runWhenDone = False
         Dim pending = Tasks.Where(Function(t) t.Status = "Pending" OrElse t.Status.StartsWith("Failed") OrElse t.Status = "Cancelled").ToList()
         If pending.Count = 0 Then
             ' Everything was processed already – run again (e.g. with another target language).
@@ -524,7 +563,8 @@ Public Class Form1
             Next
             progressBar.Value = 100
             lblStatus.Text = If(failed = 0, $"All done – {pending.Count} file(s) processed.", $"Finished – {failed} of {pending.Count} file(s) failed (see the list or the log).")
-            System.Media.SystemSounds.Asterisk.Play()
+            NotifyFinished(pending.Count, failed)
+            runWhenDone = True
         Catch ex As OperationCanceledException
             lblStatus.Text = "Cancelled."
         Catch ex As Exception
@@ -538,6 +578,64 @@ Public Class Form1
             DisposeTranslator() ' frees the GPU memory used by the AI model
             UpdateUiState()
         End Try
+        If runWhenDone Then RunWhenDoneAction()
+    End Sub
+
+    ' =====================================================================
+    '  Finished: notification and sleep / hibernate / shut down
+    ' =====================================================================
+    Private Sub NotifyFinished(total As Integer, failed As Integer)
+        If Not _settings.NotifyWhenDone Then Return
+        System.Media.SystemSounds.Asterisk.Play()
+        ' Only pop up a Windows notification when the user is looking at another window.
+        If Form.ActiveForm Is Me AndAlso WindowState <> FormWindowState.Minimized Then Return
+        Try
+            _notify.Visible = True
+            Dim text = If(failed = 0, $"{total} file(s) processed successfully.", $"{total - failed} of {total} file(s) done, {failed} failed.")
+            _notify.ShowBalloonTip(8000, "Subtitle Machine – finished", text, If(failed = 0, ToolTipIcon.Info, ToolTipIcon.Warning))
+        Catch ex As Exception
+            Logger.Log("Notification failed: " & ex.Message)
+        End Try
+    End Sub
+
+    Private Sub Notify_Click(sender As Object, e As EventArgs) Handles _notify.BalloonTipClicked, _notify.MouseClick
+        If WindowState = FormWindowState.Minimized Then WindowState = FormWindowState.Normal
+        Activate()
+        _notify.Visible = False
+    End Sub
+
+    Private Sub RunWhenDoneAction()
+        Dim action = {"nothing", "sleep", "hibernate", "shutdown"}(Math.Max(0, cmbWhenDone.SelectedIndex))
+        If action = "nothing" Then Return
+        Dim verb = {"", "go to sleep", "hibernate", "shut down"}(cmbWhenDone.SelectedIndex)
+        If Not WhenDoneCountdown.Confirm(Me, $"The PC will {verb} in", 60) Then
+            lblStatus.Text = "Cancelled – the PC stays on."
+            Return
+        End If
+        Logger.Log("When finished: " & action)
+        _settings.Save()
+        Select Case action
+            Case "sleep" : Application.SetSuspendState(PowerState.Suspend, False, False)
+            Case "hibernate" : Application.SetSuspendState(PowerState.Hibernate, False, False)
+            Case "shutdown"
+                Process.Start(New ProcessStartInfo("shutdown.exe", "/s /t 0") With {.CreateNoWindow = True, .UseShellExecute = False})
+        End Select
+        ' "When finished" is for this batch only – go back to "Do nothing".
+        cmbWhenDone.SelectedIndex = 0
+    End Sub
+
+    Private Sub ApplyTheme()
+        Theme.SetMode(_settings.Theme)
+        Theme.Apply(Me)
+        _targetList.BackColor = Theme.Current.Control
+        _targetList.ForeColor = Theme.Current.Text
+        lvTasks.Invalidate()
+    End Sub
+
+    Private Sub cmbVideoOut_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cmbVideoOut.SelectedIndexChanged
+        If _loadingUi OrElse _settings Is Nothing OrElse cmbVideoOut.SelectedIndex < 0 Then Return
+        _settings.VideoOutput = {"none", "mkv", "burn", "both"}(cmbVideoOut.SelectedIndex)
+        _settings.Save()
     End Sub
 
     Private Sub btnStop_Click(sender As Object, e As EventArgs) Handles btnStop.Click
@@ -552,6 +650,8 @@ Public Class Form1
         DisposeTranslator()
         LlamaServer.StopAll()
         _settings?.Save()
+        _notify.Visible = False
+        _notify.Dispose()
     End Sub
 
     Private Sub Form1_FormClosed(sender As Object, e As FormClosedEventArgs) Handles MyBase.FormClosed
@@ -563,4 +663,55 @@ Public Class Form1
         End Try
     End Sub
 
+End Class
+
+
+''' <summary>"The PC will shut down in 60 s" – with a Cancel button.</summary>
+Friend Class WhenDoneCountdown
+    Inherits Form
+
+    Private ReadOnly _timer As New System.Windows.Forms.Timer With {.Interval = 1000}
+    Private ReadOnly _label As New Label()
+    Private _left As Integer
+    Private ReadOnly _message As String
+
+    Private Sub New(message As String, seconds As Integer)
+        _message = message
+        _left = seconds
+        Text = "Subtitle Machine"
+        Font = New Font("Segoe UI", 10.0F)
+        ClientSize = New Size(380, 130)
+        FormBorderStyle = FormBorderStyle.FixedDialog
+        MaximizeBox = False : MinimizeBox = False
+        StartPosition = FormStartPosition.CenterParent
+        TopMost = True
+        _label.SetBounds(16, 16, 348, 50)
+        _label.TextAlign = ContentAlignment.MiddleCenter
+        Dim btnNow As New Button With {.Text = "Do it now", .DialogResult = DialogResult.OK, .Tag = "accent"}
+        btnNow.SetBounds(90, 80, 100, 32)
+        Dim btnCancel As New Button With {.Text = "Cancel", .DialogResult = DialogResult.Cancel}
+        btnCancel.SetBounds(196, 80, 100, 32)
+        Controls.AddRange(New Control() {_label, btnNow, btnCancel})
+        CancelButton = btnCancel
+        AddHandler _timer.Tick, Sub()
+                                    _left -= 1
+                                    UpdateText()
+                                    If _left <= 0 Then DialogResult = DialogResult.OK
+                                End Sub
+        UpdateText()
+        Theme.Apply(Me)
+        _timer.Start()
+    End Sub
+
+    Private Sub UpdateText()
+        _label.Text = $"{_message} {_left} seconds."
+    End Sub
+
+    Public Shared Function Confirm(owner As IWin32Window, message As String, seconds As Integer) As Boolean
+        Using f As New WhenDoneCountdown(message, seconds)
+            Dim r = f.ShowDialog(owner)
+            f._timer.Stop()
+            Return r = DialogResult.OK
+        End Using
+    End Function
 End Class
