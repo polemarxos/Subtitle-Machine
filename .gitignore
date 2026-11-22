@@ -1,0 +1,15 @@
+# Build output
+bin/
+obj/
+publish/
+*.user
+*.suo
+.vs/
+*.rsuser
+
+# Runtime data created next to the exe (never commit these)
+tools/
+config.json
+*.log
+*.log.old
+whisper_debug.log

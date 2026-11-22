@@ -1,0 +1,67 @@
+name: Build, test & release
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Run tests
+        run: dotnet test tests/SubtitleMachine.Tests/SubtitleMachine.Tests.vbproj -c Release
+
+      - name: Work out version
+        id: ver
+        shell: pwsh
+        run: |
+          if ("${{ github.ref_type }}" -eq "tag") { $v = "${{ github.ref_name }}".TrimStart('v') } else { $v = "" }
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      # Two editions of the same app:
+      #   SubtitleMachine.exe            – small, needs the .NET 10 Desktop Runtime
+      #   SubtitleMachine-standalone.exe – larger, includes .NET (nothing to install)
+      # Each copy of the app updates itself with the file of its own edition.
+      - name: Publish both editions
+        shell: pwsh
+        run: |
+          $v = "${{ steps.ver.outputs.version }}"
+          $common = @("Subtitle Machine.vbproj", "-c", "Release", "-r", "win-x64", "-p:PublishSingleFile=true")
+          if ($v) { $common += @("-p:Version=$v", "-p:AssemblyVersion=$v.0", "-p:FileVersion=$v.0") }
+          dotnet publish @common --self-contained false -o out/fd
+          dotnet publish @common --self-contained true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o out/sc
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item "out/fd/Subtitle Machine.exe" dist/SubtitleMachine.exe
+          Copy-Item "out/sc/Subtitle Machine.exe" dist/SubtitleMachine-standalone.exe
+          Get-ChildItem dist | Format-Table Name, Length
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SubtitleMachine
+          path: dist/*.exe
+
+      # Pushing a tag like v1.3.0 publishes a release; running copies of the app update from it.
+      - name: Create release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.exe
+          generate_release_notes: true
+          body: |
+            **Which file?**
+            - `SubtitleMachine-standalone.exe` – works on any Windows 10/11 x64 PC, nothing else to install.
+            - `SubtitleMachine.exe` – smaller; needs the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
+
+            FFmpeg, Whisper, llama.cpp and the TranslateGemma model are downloaded by the app on first start.

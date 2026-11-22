@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Subtitle Machine.vbproj" />
+  <Project Path="tests/SubtitleMachine.Tests/SubtitleMachine.Tests.vbproj" />
+</Solution>

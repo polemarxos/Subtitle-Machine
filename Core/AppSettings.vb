@@ -1,0 +1,110 @@
+Imports System.IO
+Imports System.Text
+Imports System.Text.Json
+
+''' <summary>User settings, persisted to config.json next to the exe (or in LocalAppData).</summary>
+Public Class AppSettings
+    ''' <summary>Target languages (ISO 639-1). One subtitle file is created per language.</summary>
+    Public Property TargetLanguages As New List(Of String) From {"el"}
+    ''' <summary>Old single-language setting (v1.0–1.2). Read once for migration.</summary>
+    Public Property TargetLanguage As String
+
+    ''' <summary>Source language for audio / SRT, ISO 639-1 code or "auto".</summary>
+    Public Property TranscribeLanguage As String = "auto"
+
+    ''' <summary>"auto" = embedded subtitles if present, otherwise audio; "embedded" = only embedded subtitles; "audio" = always transcribe the audio.</summary>
+    Public Property SubtitleSource As String = "auto"
+
+    ''' <summary>"auto" (choose by VRAM), "4b", "12b" or "27b".</summary>
+    Public Property TranslateModelSize As String = "auto"
+    ''' <summary>"auto", "cuda", "vulkan" or "cpu" (llama.cpp build; whisper uses CUDA or CPU).</summary>
+    Public Property GpuBackend As String = "auto"
+
+    ''' <summary>whisper.cpp model name, e.g. "large-v3-turbo" → ggml-large-v3-turbo.bin</summary>
+    Public Property WhisperModel As String = "large-v3-turbo"
+    ''' <summary>Use Silero voice detection so Whisper skips silence (fewer invented lines).</summary>
+    Public Property UseVad As Boolean = True
+
+    ''' <summary>Read image subtitles (PGS / VobSub) with Windows OCR.</summary>
+    Public Property OcrImageSubtitles As Boolean = True
+    ''' <summary>Translate several neighbouring lines together so names and tone stay consistent.</summary>
+    Public Property ContextTranslation As Boolean = True
+    ''' <summary>Re-wrap long lines and fix too-short / overlapping display times.</summary>
+    Public Property FixFormatting As Boolean = True
+    Public Property MaxLineLength As Integer = 42
+
+    ''' <summary>Write the translation into the original subtitle file instead of creating "Movie.el.srt".</summary>
+    Public Property ReplaceOriginal As Boolean = False
+    ''' <summary>Re-create output files that already exist.</summary>
+    Public Property OverwriteExisting As Boolean = False
+
+    Public Property AutoUpdateApp As Boolean = True
+    Public Property CheckComponentUpdates As Boolean = True
+
+    ' ----- persistence -----
+    Private Shared ReadOnly JsonOpts As New JsonSerializerOptions With {.WriteIndented = True}
+
+    Public Shared Function Load() As AppSettings
+        Dim s As AppSettings = Nothing
+        Try
+            If File.Exists(AppPaths.SettingsFile) Then
+                s = JsonSerializer.Deserialize(Of AppSettings)(File.ReadAllText(AppPaths.SettingsFile, Encoding.UTF8))
+            End If
+        Catch ex As Exception
+            Logger.Log("Failed to read config.json: " & ex.Message)
+        End Try
+        If s Is Nothing Then s = New AppSettings()
+        s.Normalize()
+        Return s
+    End Function
+
+    ''' <summary>Fixes invalid values and migrates settings of older versions.</summary>
+    Public Sub Normalize()
+        ' v1.0–1.2 stored one language (sometimes as a name, "Greek").
+        If Not String.IsNullOrWhiteSpace(TargetLanguage) Then
+            Dim old = Languages.Find(TargetLanguage)
+            If old IsNot Nothing Then TargetLanguages = New List(Of String) From {old.Code}
+            TargetLanguage = Nothing
+        End If
+        TargetLanguages = If(TargetLanguages, New List(Of String)).
+            Select(Function(c) Languages.Find(c)).Where(Function(l) l IsNot Nothing).
+            Select(Function(l) l.Code).Distinct().ToList()
+        If TargetLanguages.Count = 0 Then TargetLanguages.Add("el")
+
+        If TranscribeLanguage <> "auto" Then
+            Dim src = Languages.Find(TranscribeLanguage)
+            TranscribeLanguage = If(src IsNot Nothing, src.Code, "auto")
+        End If
+        If Not {"auto", "embedded", "audio"}.Contains(SubtitleSource) Then SubtitleSource = "auto"
+        If Not {"auto", "4b", "12b", "27b"}.Contains(If(TranslateModelSize, "").ToLowerInvariant()) Then TranslateModelSize = "auto"
+        If Not {"auto", "cuda", "vulkan", "cpu"}.Contains(If(GpuBackend, "").ToLowerInvariant()) Then GpuBackend = "auto"
+        If String.IsNullOrWhiteSpace(WhisperModel) Then WhisperModel = "large-v3-turbo"
+        If MaxLineLength < 20 OrElse MaxLineLength > 80 Then MaxLineLength = 42
+    End Sub
+
+    Public Sub Save()
+        Try
+            File.WriteAllText(AppPaths.SettingsFile, JsonSerializer.Serialize(Me, JsonOpts), Encoding.UTF8)
+        Catch ex As Exception
+            Logger.Log("Failed to save config.json: " & ex.Message)
+        End Try
+    End Sub
+
+    Public Function Targets() As List(Of LanguageInfo)
+        Return TargetLanguages.Select(Function(c) Languages.Find(c)).Where(Function(l) l IsNot Nothing).ToList()
+    End Function
+
+    ''' <summary>Resolves "auto" to 4b/12b/27b using the detected VRAM.</summary>
+    Public Function EffectiveModelSize() As String
+        Dim s = If(TranslateModelSize, "auto").ToLowerInvariant()
+        If s = "4b" OrElse s = "12b" OrElse s = "27b" Then Return s
+        Return HardwareInfo.RecommendedTranslateSize()
+    End Function
+
+    ''' <summary>Resolves "auto" to cuda/vulkan/cpu using the detected GPU.</summary>
+    Public Function EffectiveGpuBackend() As String
+        Dim s = If(GpuBackend, "auto").ToLowerInvariant()
+        If s = "cuda" OrElse s = "vulkan" OrElse s = "cpu" Then Return s
+        Return HardwareInfo.RecommendedGpuBackend()
+    End Function
+End Class
