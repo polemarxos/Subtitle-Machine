@@ -374,3 +374,59 @@ Public Class ResumeAndSettingsTests
         Assert.StartsWith("-c:v libx264", VideoOutput.EncoderCandidates().Last())
     End Sub
 End Class
+
+Public Class CompareTests
+    Private Shared Function Cue(t As String, text As String) As SrtCue
+        Return New SrtCue With {.Timing = t, .Text = text}
+    End Function
+
+    <Fact>
+    Public Sub Compare_FindsAllKindsOfDifferences()
+        Dim a = New List(Of SrtCue) From {
+            Cue("00:00:01,000 --> 00:00:02,000", "Hello there"),
+            Cue("00:00:03,000 --> 00:00:04,000", "Where were you?"),
+            Cue("00:00:05,000 --> 00:00:06,000", "Same text"),
+            Cue("00:00:07,000 --> 00:00:08,000", "Only in A")}
+        Dim b = New List(Of SrtCue) From {
+            Cue("00:00:01,000 --> 00:00:02,000", "<i>Hello  there</i>"),       ' tags/spaces ignored
+            Cue("00:00:03,000 --> 00:00:04,000", "Where are you?"),
+            Cue("00:00:05,600 --> 00:00:06,500", "Same text"),
+            Cue("00:00:10,000 --> 00:00:11,000", "Only in B")}
+        Dim rows = SubtitleCompare.Compare(a, b, TimeSpan.FromMilliseconds(100))
+        Assert.Equal({DiffKind.Same, DiffKind.TextChanged, DiffKind.TimingChanged, DiffKind.OnlyInA, DiffKind.OnlyInB}, rows.Select(Function(r) r.Kind).ToArray())
+        Assert.Contains("1 same", SubtitleCompare.Summary(rows))
+    End Sub
+
+    <Fact>
+    Public Sub Tolerance_HidesSmallTimingShifts()
+        Dim a = New List(Of SrtCue) From {Cue("00:00:05,000 --> 00:00:06,000", "x")}
+        Dim b = New List(Of SrtCue) From {Cue("00:00:05,080 --> 00:00:06,050", "x")}
+        Assert.Equal(DiffKind.Same, SubtitleCompare.Compare(a, b, TimeSpan.FromMilliseconds(100))(0).Kind)
+        Assert.Equal(DiffKind.TimingChanged, SubtitleCompare.Compare(a, b, TimeSpan.Zero)(0).Kind)
+    End Sub
+
+    <Fact>
+    Public Sub WordDiff_MarksOnlyChangedWords()
+        Dim ta As List(Of DiffToken) = Nothing, tb As List(Of DiffToken) = Nothing
+        SubtitleCompare.WordDiff("Where were you last night?", "Where are you tonight?", ta, tb)
+        Assert.Equal({"were", "last", "night"}, ta.Where(Function(t) t.Changed).Select(Function(t) t.Text).ToArray())
+        Assert.Equal({"are", "tonight"}, tb.Where(Function(t) t.Changed).Select(Function(t) t.Text).ToArray())
+        Assert.Equal("Where were you last night?", String.Concat(ta.Select(Function(t) t.Text)))
+    End Sub
+End Class
+
+Public Class DefaultGlossaryTests
+    <Fact>
+    Public Sub StarterGlossary_HasEnglishAndGreekEntries()
+        Dim g = Glossary.Parse(Glossary.Template)
+        Assert.Equal("κ.", g.ForText("Mr. Smith is here", Languages.Find("el")).Single().Target)
+        Assert.Equal("FBI", g.ForText("Call the FBI", Languages.Find("el")).Single().Target)
+        Assert.Equal("Mr.", g.ForText("Ο κ. Παπαδόπουλος", Languages.Find("en")).Single().Target)
+        Assert.Empty(g.ForText("κ.λπ.", Languages.Find("en")))   ' abbreviation inside another word is not matched
+    End Sub
+
+    <Fact>
+    Public Sub ReplaceOriginal_IsDefaultAndMigrated()
+        Assert.True(New AppSettings().ReplaceOriginal)
+    End Sub
+End Class

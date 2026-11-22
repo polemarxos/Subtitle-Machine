@@ -49,6 +49,7 @@ Public Class ComponentsForm
     End Sub
 
     Private Sub BuildUi()
+        SuspendLayout()
         Text = "Components & settings"
         Font = New Font("Segoe UI", 9.0F)
         BackColor = BgDark
@@ -56,9 +57,9 @@ Public Class ComponentsForm
         ClientSize = New Size(780, 712)
         FormBorderStyle = FormBorderStyle.FixedDialog
         MaximizeBox = False
-        MinimizeBox = False
+        MinimizeBox = True       ' downloads can take a while – allow minimising
         StartPosition = FormStartPosition.CenterParent
-        ShowInTaskbar = False
+        ShowInTaskbar = True     ' visible in the taskbar (also on first start, before the main window)
 
         lblHardware.SetBounds(12, 10, 756, 36)
         lblHardware.Text = $"Detected GPU: {HardwareInfo.Gpu}" & vbCrLf &
@@ -135,7 +136,7 @@ Public Class ComponentsForm
         btnInstall.Width = 170
         StyleButton(btnCancel, "Cancel", 330, Color.FromArgb(217, 83, 79))
         btnCancel.Enabled = False
-        StyleButton(btnClose, "Close", 668, BgControl)
+        StyleButton(btnClose, "Close", 638, BgControl)
 
         progress.SetBounds(12, 644, 756, 22)
         lblStatus.SetBounds(12, 672, 756, 34)
@@ -146,6 +147,27 @@ Public Class ComponentsForm
         btnCheck.Tag = "accent" : btnInstall.Tag = "accent" : btnCancel.Tag = "danger"
         lblStatus.Tag = "muted"
         Theme.Apply(Me)
+
+        ' Dark/light column header instead of the white Windows header.
+        lv.OwnerDraw = True
+        AddHandler lv.DrawColumnHeader, Sub(s, e)
+                                            Using b As New SolidBrush(Theme.Current.Panel)
+                                                e.Graphics.FillRectangle(b, e.Bounds)
+                                            End Using
+                                            Dim r = e.Bounds : r.Inflate(-6, 0)
+                                            TextRenderer.DrawText(e.Graphics, e.Header.Text, lv.Font, r, Theme.Current.Muted, TextFormatFlags.VerticalCenter Or TextFormatFlags.EndEllipsis)
+                                        End Sub
+        AddHandler lv.DrawItem, Sub(s, e) e.DrawDefault = True
+        AddHandler lv.DrawSubItem, Sub(s, e) e.DrawDefault = True
+        ' While downloading the list stays readable but the ticks cannot be changed.
+        AddHandler lv.ItemCheck, Sub(s, e)
+                                     If _cts IsNot Nothing Then e.NewValue = e.CurrentValue
+                                 End Sub
+
+        ' Scale positions with Windows display scaling (125 %, 150 % …).
+        AutoScaleDimensions = New SizeF(7.0F, 15.0F)
+        AutoScaleMode = AutoScaleMode.Font
+        ResumeLayout(False)
 
         AddHandler btnCheck.Click, Async Sub() Await CheckUpdatesAsync()
         AddHandler btnInstall.Click, Async Sub() Await InstallSelectedAsync()
@@ -175,7 +197,7 @@ Public Class ComponentsForm
 
     Private Sub AddCheck(parent As Control, c As CheckBox, caption As String, x As Integer, y As Integer)
         c.Text = caption
-        c.SetBounds(x, y, 370, 22)
+        c.SetBounds(x, y, 350, 22)
         c.ForeColor = Color.White
         parent.Controls.Add(c)
     End Sub
@@ -232,6 +254,15 @@ Public Class ComponentsForm
         Await CheckUpdatesAsync()
         If _autoInstall AndAlso _components.Any(Function(c) c.IsRequired() AndAlso Not c.IsInstalled()) Then
             Await InstallSelectedAsync()
+            ' First-time setup finished → close by itself and go straight to the main window.
+            If Not IsDisposed AndAlso Not _components.Any(Function(c) c.IsRequired() AndAlso Not c.IsInstalled()) Then
+                lblStatus.Text = "All components are installed – ready to go!"
+                Await Task.Delay(1500)
+                If Not IsDisposed Then
+                    DialogResult = DialogResult.OK
+                    Close()
+                End If
+            End If
         End If
     End Sub
 
@@ -329,7 +360,6 @@ Public Class ComponentsForm
         cmbWhisper.Enabled = Not busy
         cmbSize.Enabled = Not busy
         cmbGpu.Enabled = Not busy
-        lv.Enabled = Not busy
     End Sub
 
     Private Async Function CheckUpdatesAsync(Optional onlyMissing As Boolean = False) As Task
@@ -447,6 +477,7 @@ Public Class GlossaryForm
     Private ReadOnly txt As New TextBox()
 
     Public Sub New()
+        SuspendLayout()
         Text = "Glossary – names and terms"
         Font = New Font("Segoe UI", 9.5F)
         ClientSize = New Size(640, 520)
@@ -485,5 +516,8 @@ Public Class GlossaryForm
                                       DialogResult = DialogResult.OK
                                   End Sub
         Theme.Apply(Me)
+        AutoScaleDimensions = New SizeF(7.0F, 15.0F)
+        AutoScaleMode = AutoScaleMode.Font
+        ResumeLayout(False)
     End Sub
 End Class

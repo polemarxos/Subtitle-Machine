@@ -36,7 +36,7 @@ Public Class Form1
     ' =====================================================================
     '  Startup
     ' =====================================================================
-    Private Async Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
+    Private Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Dim ver = SelfUpdater.CurrentVersion().ToString(3)
         Text = $"Subtitle Machine {ver}"
         lblVersion.Text = "v" & ver
@@ -63,7 +63,8 @@ Public Class Form1
         PopulateModelCombo()
         UpdateTargetsText()
         UpdateUiState()
-        toolTip.SetToolTip(chkReplaceOriginal, "On: the translation is written into the original .srt (e.g. Movie.srt)." & vbCrLf & "Off: a new file is created (e.g. Movie.el.srt) and the original is kept.")
+        toolTip.SetToolTip(chkOverwrite, "Off: files that already exist (e.g. Movie.el.srt from an earlier run) are skipped." & vbCrLf &
+                                         "On: they are extracted / transcribed / translated again and overwritten.")
         toolTip.SetToolTip(cmbModel, "Google TranslateGemma, running locally with llama.cpp." & vbCrLf & "Automatic chooses the size that fits your graphics card.")
         toolTip.SetToolTip(cmbSubSource, "Embedded: use subtitles inside the video (text, or image subtitles read with OCR)." & vbCrLf &
                                          "Audio: always create the subtitles from the speech with Whisper.")
@@ -87,6 +88,10 @@ Public Class Form1
         _notify.Icon = Icon
         _notify.Text = "Subtitle Machine"
 
+    End Sub
+
+    ''' <summary>Runs after the main window is visible (so setup dialogs have a window and a taskbar button behind them).</summary>
+    Private Async Sub Form1_Shown(sender As Object, e As EventArgs) Handles MyBase.Shown
         ' Missing tools → offer to download everything.
         Dim missing = DependencyManager.MissingRequired(_settings)
         If missing.Count > 0 Then
@@ -158,11 +163,10 @@ Public Class Form1
     Private Sub UpdateTargetsText()
         Dim names = _settings.Targets().Select(Function(l) l.Name).ToList()
         btnTargets.Text = If(names.Count <= 3, String.Join(", ", names), $"{names.Count} languages") & "  ▾"
-        If _settings.TargetLanguages.Count = 1 Then
-            chkReplaceOriginal.Text = $"Replace original subtitle file (no .{_settings.TargetLanguages(0)}.srt copy)"
-        Else
-            chkReplaceOriginal.Text = "Replace original subtitle file (only with one language)"
-        End If
+        chkReplaceOriginal.Text = "Replace original subtitle file"
+        toolTip.SetToolTip(chkReplaceOriginal, If(_settings.TargetLanguages.Count = 1,
+            $"On: the translation is written into the original subtitle file (e.g. Movie.srt)." & vbCrLf & $"Off: a new file is created (e.g. Movie.{_settings.TargetLanguages(0)}.srt) and the original is kept.",
+            "Only possible with one target language – with several languages each one gets its own file (Movie.el.srt, Movie.en.srt…)."))
     End Sub
 
     ' =====================================================================
@@ -396,6 +400,8 @@ Public Class Form1
     Private Sub ctxTasks_Opening(sender As Object, e As System.ComponentModel.CancelEventArgs) Handles ctxTasks.Opening
         Dim item = If(lvTasks.SelectedItems.Count > 0, DirectCast(lvTasks.SelectedItems(0).Tag, TaskItem), Nothing)
         mnuEdit.Enabled = _cts Is Nothing AndAlso SubtitleEditorForm.CanEdit(item)
+        mnuCompare.Enabled = item IsNot Nothing AndAlso SubtitleEditorForm.CanEdit(item) AndAlso item.SourcePath IsNot Nothing AndAlso File.Exists(item.SourcePath) AndAlso
+                             Not item.Outputs.Any(Function(o) String.Equals(o, item.SourcePath, StringComparison.OrdinalIgnoreCase))
         mnuOpenFolder.Enabled = item IsNot Nothing
         mnuRemove.Enabled = _cts Is Nothing AndAlso item IsNot Nothing
     End Sub
@@ -408,6 +414,23 @@ Public Class Form1
             f.Icon = Icon
             f.ShowDialog(Me)
         End Using
+    End Sub
+
+    Private Sub btnCompare_Click(sender As Object, e As EventArgs) Handles btnCompare.Click
+        ' Pre-fill with the selected file's original and translation, if there is one.
+        Dim item = If(lvTasks.SelectedItems.Count > 0, DirectCast(lvTasks.SelectedItems(0).Tag, TaskItem), Nothing)
+        Dim a = If(item?.SourcePath, If(item IsNot Nothing AndAlso Path.GetExtension(item.FilePath).Equals(".srt", StringComparison.OrdinalIgnoreCase), item.FilePath, Nothing))
+        Dim b = item?.Outputs.FirstOrDefault(Function(o) o.EndsWith(".srt", StringComparison.OrdinalIgnoreCase) AndAlso Not String.Equals(o, a, StringComparison.OrdinalIgnoreCase))
+        ShowCompare(a, b)
+    End Sub
+
+    Private Sub mnuCompare_Click(sender As Object, e As EventArgs) Handles mnuCompare.Click
+        btnCompare.PerformClick()
+    End Sub
+
+    Private Sub ShowCompare(a As String, b As String)
+        Dim f As New CompareForm(a, b) With {.Icon = Icon}
+        f.Show(Me) ' not modal: several comparisons can stay open
     End Sub
 
     Private Sub mnuOpenFolder_Click(sender As Object, e As EventArgs) Handles mnuOpenFolder.Click
@@ -700,6 +723,8 @@ Friend Class WhenDoneCountdown
                                 End Sub
         UpdateText()
         Theme.Apply(Me)
+        AutoScaleDimensions = New SizeF(7.0F, 15.0F)
+        AutoScaleMode = AutoScaleMode.Font
         _timer.Start()
     End Sub
 

@@ -34,7 +34,9 @@ Public Class AppSettings
     Public Property MaxLineLength As Integer = 42
 
     ''' <summary>Write the translation into the original subtitle file instead of creating "Movie.el.srt".</summary>
-    Public Property ReplaceOriginal As Boolean = False
+    Public Property ReplaceOriginal As Boolean = True
+    ''' <summary>Settings format version (used to apply new defaults once).</summary>
+    Public Property ConfigVersion As Integer = 2
     ''' <summary>Re-create output files that already exist.</summary>
     Public Property OverwriteExisting As Boolean = False
 
@@ -66,6 +68,10 @@ Public Class AppSettings
             Logger.Log("Failed to read config.json: " & ex.Message)
         End Try
         If s Is Nothing Then s = New AppSettings()
+        If s.ConfigVersion < 2 Then
+            s.ReplaceOriginal = True ' 1.4.1: replacing the original subtitle file is the default again
+            s.ConfigVersion = 2
+        End If
         s.Normalize()
         Return s
     End Function

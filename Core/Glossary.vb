@@ -29,23 +29,71 @@ Public Class Glossary
         End Get
     End Property
 
+    ''' <summary>Starter glossary for English ↔ Greek (written once to glossary.txt; the user can edit it).</summary>
     Public Const Template As String =
-        "# Glossary – names and terms that must always be translated the same way." & vbCrLf &
-        "# One entry per line:   original = translation" & vbCrLf &
-        "# Keep a word untranslated by leaving the right side empty:   Winterfell =" & vbCrLf &
-        "# Entries under a [language code] header apply only to that language, e.g. [el] for Greek." & vbCrLf &
-        "# Lines starting with # are ignored." & vbCrLf & vbCrLf &
-        "# Nick = Nick" & vbCrLf & vbCrLf &
-        "[el]" & vbCrLf &
-        "# Nick = Νίκος" & vbCrLf
+"# Glossary – names and terms that must always be translated the same way.
+# One entry per line:   original = translation
+# Leave the right side empty to keep a word untranslated:   Winterfell =
+# Entries under a [language] header apply only when translating INTO that language: [el] = Greek, [en] = English.
+# Lines starting with # are ignored. Add the names of characters and places of your series below.
+
+# ---- All languages: keep these as they are ----
+FBI =
+CIA =
+NSA =
+NASA =
+NYPD =
+LAPD =
+MI6 =
+DNA =
+GPS =
+Wi-Fi =
+iPhone =
+Facebook =
+Instagram =
+YouTube =
+Google =
+
+[el]
+# ---- English → Greek ----
+Mr. = κ.
+Mrs. = κα
+Ms. = κα
+Dr. = Δρ
+Okay = Εντάξει
+OK = Εντάξει
+Ma'am = Κυρία
+Lieutenant = Υπολοχαγός
+Sergeant = Λοχίας
+Detective = Ντετέκτιβ
+Sheriff = Σερίφης
+Deputy = Βοηθός σερίφη
+Senator = Γερουσιαστής
+Mayor = Δήμαρχος
+Prosecutor = Εισαγγελέας
+District Attorney = Εισαγγελέας
+Your Honor = Κύριε Πρόεδρε
+Thanksgiving = Ημέρα των Ευχαριστιών
+Dude = φίλε
+
+[en]
+# ---- Greek → English ----
+κ. = Mr.
+κα = Mrs.
+Δρ = Dr.
+Εντάξει = Okay
+Κύριε Πρόεδρε = Your Honor
+"
 
     Public Shared Function Load() As Glossary
         Try
+            ' First start: create the starter glossary so the user can see and edit it.
+            If Not File.Exists(FilePath) Then File.WriteAllText(FilePath, Template.Replace(vbLf, vbCrLf).Replace(vbCr & vbCr, vbCr), New UTF8Encoding(False))
             If File.Exists(FilePath) Then Return Parse(File.ReadAllText(FilePath, Encoding.UTF8))
         Catch ex As Exception
             Logger.Log("Glossary unreadable: " & ex.Message)
         End Try
-        Return New Glossary()
+        Return Parse(Template)
     End Function
 
     Public Shared Function Parse(text As String) As Glossary

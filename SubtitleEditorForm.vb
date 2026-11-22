@@ -39,6 +39,7 @@ Public Class SubtitleEditorForm
     End Function
 
     Private Sub BuildUi()
+        SuspendLayout()
         Text = "Subtitle editor – " & Path.GetFileName(_item.FilePath)
         Font = New Font("Segoe UI", 9.5F)
         ClientSize = New Size(1000, 640)
@@ -94,6 +95,9 @@ Public Class SubtitleEditorForm
         AddHandler btnClose.Click, Sub() Close()
         AddHandler btnRetranslate.Click, Async Sub() Await RetranslateSelectedAsync()
         Theme.Apply(Me)
+        AutoScaleDimensions = New SizeF(7.0F, 15.0F)
+        AutoScaleMode = AutoScaleMode.Font
+        ResumeLayout(False)
     End Sub
 
     Protected Overrides Sub OnKeyDown(e As KeyEventArgs)

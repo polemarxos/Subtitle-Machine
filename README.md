@@ -23,9 +23,10 @@ Everything it needs is **downloaded automatically from the official sources** an
 - NVIDIA (CUDA), AMD / Intel (Vulkan) or CPU, detected automatically
 - Reads non-UTF-8 subtitle files (e.g. Windows-1253 Greek) and writes UTF-8
 - **Video output:** add the new subtitles into an MKV copy as extra tracks (no re-encoding, language tags set) and/or make an MP4 copy with the subtitles **burned into the picture** (uses the GPU's video encoder when available)
-- **Glossary:** names and terms that must always be translated the same way, or never translated (*Components & settings › Edit glossary*)
+- **Glossary:** names and terms that must always be translated the same way, or never translated (*Components & settings › Edit glossary*). A starter glossary for English ↔ Greek is created on first start.
 - **Resume:** after Stop, a crash or a power cut, the next Start continues where the translation stopped
 - **Subtitle editor:** double-click a finished file to review original and translation side by side, fix text or times, re-translate selected lines and save
+- **Compare subtitles:** two files side by side, matched by time, with changed words marked, timing differences in orange, and lines that exist in only one file in red/green; *Show only differences* and *Next difference* (F3)
 - **When finished:** do nothing, sleep, hibernate or shut down (with a 60-second countdown you can cancel)
 - **Light, dark or Windows theme**, and a Windows notification with sound when a batch is done
 
@@ -89,8 +90,8 @@ Stored next to the exe (or in `%LocalAppData%\Subtitle Machine` if that folder i
 | `KeepSrtFiles` | `true` | Keep the .srt files after adding them into the MKV |
 | `Theme` | `system` | `system`, `dark`, `light` |
 | `NotifyWhenDone` | `true` | Notification and sound when a batch is finished |
-| `ReplaceOriginal` | `false` | Write the translation into the original subtitle file (one target language only) |
-| `OverwriteExisting` | `false` | Re-create subtitles that already exist |
+| `ReplaceOriginal` | `true` | Write the translation into the original subtitle file (one target language only) |
+| `OverwriteExisting` | `false` | Off: subtitle files that already exist are skipped. On: they are made again and overwritten |
 | `AutoUpdateApp` | `true` | Update the app automatically from GitHub |
 | `CheckComponentUpdates` | `true` | Check component updates on startup |
 

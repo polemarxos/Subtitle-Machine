@@ -32,6 +32,8 @@ Partial Class Form1
         btnAddFolder = New Button()
         btnRemove = New Button()
         btnClear = New Button()
+        btnCompare = New Button()
+        mnuCompare = New ToolStripMenuItem()
         pnlList = New Panel()
         lblDropHint = New Label()
         lvTasks = New ListView()
@@ -102,7 +104,7 @@ Partial Class Form1
         lblVersion.ForeColor = Color.FromArgb(CByte(150), CByte(150), CByte(150))
         lblVersion.Location = New Point(186, 21)
         lblVersion.Name = "lblVersion"
-        lblVersion.Text = "v1.4.0"
+        lblVersion.Text = "v1.4.1"
         '
         ' btnComponents
         '
@@ -168,6 +170,7 @@ Partial Class Form1
         pnlToolbar.Controls.Add(btnAddFolder)
         pnlToolbar.Controls.Add(btnRemove)
         pnlToolbar.Controls.Add(btnClear)
+        pnlToolbar.Controls.Add(btnCompare)
         pnlToolbar.Dock = DockStyle.Top
         pnlToolbar.Name = "pnlToolbar"
         pnlToolbar.Size = New Size(900, 50)
@@ -219,6 +222,15 @@ Partial Class Form1
         btnClear.Size = New Size(100, 32)
         btnClear.Text = "Clear list"
         btnClear.UseVisualStyleBackColor = False
+        ' 
+        ' btnCompare
+        ' 
+        btnCompare.FlatStyle = FlatStyle.Flat
+        btnCompare.Location = New Point(486, 10)
+        btnCompare.Name = "btnCompare"
+        btnCompare.Size = New Size(150, 32)
+        btnCompare.Text = "Compare subtitles…"
+        btnCompare.UseVisualStyleBackColor = False
         '
         ' pnlList
         '
@@ -268,7 +280,9 @@ Partial Class Form1
         '
         ' ctxTasks
         '
-        ctxTasks.Items.AddRange(New ToolStripItem() {mnuEdit, mnuOpenFolder, mnuRemove})
+        ctxTasks.Items.AddRange(New ToolStripItem() {mnuEdit, mnuCompare, mnuOpenFolder, mnuRemove})
+        mnuCompare.Name = "mnuCompare"
+        mnuCompare.Text = "Compare translation with original…"
         mnuEdit.Name = "mnuEdit"
         mnuEdit.Text = "Edit subtitles…"
         ctxTasks.Name = "ctxTasks"
@@ -421,7 +435,7 @@ Partial Class Form1
         chkReplaceOriginal.ForeColor = Color.Gainsboro
         chkReplaceOriginal.Margin = New Padding(3, 3, 3, 3)
         chkReplaceOriginal.Name = "chkReplaceOriginal"
-        chkReplaceOriginal.Text = "Replace original subtitle file (no .el.srt copy)"
+        chkReplaceOriginal.Text = "Replace original subtitle file"
         '
         ' lblGpu
         '
@@ -545,6 +559,8 @@ Partial Class Form1
     Friend WithEvents btnAddFolder As Button
     Friend WithEvents btnRemove As Button
     Friend WithEvents btnClear As Button
+    Friend WithEvents btnCompare As Button
+    Friend WithEvents mnuCompare As ToolStripMenuItem
     Friend WithEvents pnlList As Panel
     Friend WithEvents lblDropHint As Label
     Friend WithEvents lvTasks As ListView

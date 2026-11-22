@@ -87,7 +87,10 @@ Public Module Theme
                 b.ForeColor = If(tag = "accent" OrElse tag = "danger", Color.White, p.Text)
                 b.FlatAppearance.BorderColor = If(tag = "accent" OrElse tag = "danger", bg, p.Border)
                 b.FlatAppearance.BorderSize = 1
-            Case TypeOf c Is ComboBox, TypeOf c Is TextBoxBase, TypeOf c Is NumericUpDown, TypeOf c Is ListBox
+            Case TypeOf c Is ComboBox
+                c.BackColor = p.Control : c.ForeColor = p.Text
+                OwnerDrawCombo(DirectCast(c, ComboBox))
+            Case TypeOf c Is TextBoxBase, TypeOf c Is NumericUpDown, TypeOf c Is ListBox
                 c.BackColor = p.Control : c.ForeColor = p.Text
             Case TypeOf c Is ListView
                 c.BackColor = p.Back : c.ForeColor = p.Text
@@ -105,6 +108,35 @@ Public Module Theme
         For Each child As Control In c.Controls
             ApplyTo(child, p)
         Next
+    End Sub
+
+    Private ReadOnly _drawnCombos As New System.Runtime.CompilerServices.ConditionalWeakTable(Of ComboBox, Object)
+
+    ''' <summary>
+    ''' Windows paints a disabled drop-down list grey-on-grey (unreadable in dark mode).
+    ''' Drawing the items ourselves keeps them readable in every state.
+    ''' </summary>
+    Private Sub OwnerDrawCombo(cb As ComboBox)
+        If cb.DropDownStyle <> ComboBoxStyle.DropDownList Then Return
+        Dim dummy As Object = Nothing
+        If _drawnCombos.TryGetValue(cb, dummy) Then Return
+        _drawnCombos.Add(cb, New Object())
+        cb.DrawMode = DrawMode.OwnerDrawFixed
+        cb.ItemHeight = Math.Max(cb.ItemHeight, cb.Font.Height + 2)
+        AddHandler cb.DrawItem, Sub(sender, e)
+                                    Dim pal = Current
+                                    Dim isEdit = (e.State And DrawItemState.ComboBoxEdit) <> 0
+                                    Dim selected = (e.State And DrawItemState.Selected) <> 0 AndAlso Not isEdit
+                                    Dim bg = If(selected, pal.Selected, pal.Control)
+                                    Using b As New SolidBrush(bg)
+                                        e.Graphics.FillRectangle(b, e.Bounds)
+                                    End Using
+                                    If e.Index < 0 Then Return
+                                    Dim fg = If(Not cb.Enabled, pal.Muted, If(selected AndAlso pal.IsDark, Color.White, pal.Text))
+                                    Dim r = e.Bounds : r.Inflate(-3, 0)
+                                    TextRenderer.DrawText(e.Graphics, cb.GetItemText(cb.Items(e.Index)), cb.Font, r, fg,
+                                                          TextFormatFlags.VerticalCenter Or TextFormatFlags.Left Or TextFormatFlags.EndEllipsis Or TextFormatFlags.NoPrefix)
+                                End Sub
     End Sub
 
     Public Sub StyleGrid(g As DataGridView, p As Palette)
