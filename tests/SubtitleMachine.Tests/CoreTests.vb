@@ -719,3 +719,18 @@ Public Class SyncPartsTests
         Assert.Null(SubtitleSync.ParseSileroSegments("nothing here", 30))
     End Sub
 End Class
+
+Public Class LoggerTests
+    <Fact>
+    Public Sub LogFile_CanBeSwitchedOff()
+        Dim before = If(File.Exists(AppPaths.LogFile), New FileInfo(AppPaths.LogFile).Length, 0L)
+        Try
+            Logger.Enabled = False
+            Logger.Log("must not be written")
+            Assert.Equal(before, If(File.Exists(AppPaths.LogFile), New FileInfo(AppPaths.LogFile).Length, 0L))
+        Finally
+            Logger.Enabled = True
+        End Try
+        Assert.True(New AppSettings().WriteLog)
+    End Sub
+End Class

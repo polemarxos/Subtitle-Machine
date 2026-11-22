@@ -1,6 +1,7 @@
 ''' <summary>Greek interface texts. Key = English text exactly as written in the code (with {0} placeholders).</summary>
 Friend NotInheritable Class GreekStrings
     Public Shared ReadOnly Map As New Dictionary(Of String, String)(StringComparer.Ordinal) From {
+        {"Write a log file (for troubleshooting; at most about 10 MB)", "Καταγραφή σε αρχείο log (για διάγνωση προβλημάτων· έως περίπου 10 MB)"},
         {"{0} part(s) moved separately", "{0} τμήματα μετακινήθηκαν χωριστά"},
         {"Translate subtitles", "Μετάφραση υποτίτλων"},
         {"Only sync subtitle timing to the video (no translation)", "Μόνο συγχρονισμός υποτίτλων με το βίντεο (χωρίς μετάφραση)"},

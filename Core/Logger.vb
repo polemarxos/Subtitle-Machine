@@ -1,26 +1,33 @@
 Imports System.IO
 Imports System.Text
 
-''' <summary>Thread-safe logger. Always writes to the log file; also to the console when started with -debug.</summary>
+''' <summary>
+''' Thread-safe logger: writes to subtitle_machine.log (unless switched off in the settings); also to the console when
+''' started with -debug. At 5 MB the file is renamed to .log.old and a new one is started, so it never takes more than ~10 MB.
+''' </summary>
 Public Module Logger
 
     Private ReadOnly _lock As New Object()
     Public Property DebugConsole As Boolean = False
+    ''' <summary>Write the log file (setting "Write a log file").</summary>
+    Public Property Enabled As Boolean = True
     Private Const MaxLogBytes As Long = 5L * 1024 * 1024
 
     Public Sub Log(message As String)
         Dim line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} - {message}"
-        SyncLock _lock
-            Try
-                Dim fi As New FileInfo(AppPaths.LogFile)
-                If fi.Exists AndAlso fi.Length > MaxLogBytes Then
-                    File.Copy(fi.FullName, fi.FullName & ".old", True)
-                    File.Delete(fi.FullName)
-                End If
-                File.AppendAllText(AppPaths.LogFile, line & Environment.NewLine, Encoding.UTF8)
-            Catch
-            End Try
-        End SyncLock
+        If Enabled Then
+            SyncLock _lock
+                Try
+                    Dim fi As New FileInfo(AppPaths.LogFile)
+                    If fi.Exists AndAlso fi.Length > MaxLogBytes Then
+                        File.Copy(fi.FullName, fi.FullName & ".old", True)
+                        File.Delete(fi.FullName)
+                    End If
+                    File.AppendAllText(AppPaths.LogFile, line & Environment.NewLine, Encoding.UTF8)
+                Catch
+                End Try
+            End SyncLock
+        End If
         If DebugConsole Then
             Try
                 Console.WriteLine(line)

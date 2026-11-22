@@ -38,6 +38,8 @@ Public Class AppSettings
     Public Property JobMode As String = "translate"
     ''' <summary>Mark spelling mistakes in the subtitle editor.</summary>
     Public Property SpellCheck As Boolean = True
+    ''' <summary>Write subtitle_machine.log (max ~10 MB: 5 MB + one old file).</summary>
+    Public Property WriteLog As Boolean = True
     Public Property FixFormatting As Boolean = True
     Public Property MaxLineLength As Integer = 42
 
@@ -85,6 +87,7 @@ Public Class AppSettings
             s.ConfigVersion = 3
         End If
         s.Normalize()
+        Logger.Enabled = s.WriteLog
         Return s
     End Function
 
@@ -117,6 +120,7 @@ Public Class AppSettings
     End Sub
 
     Public Sub Save()
+        Logger.Enabled = WriteLog
         Try
             File.WriteAllText(AppPaths.SettingsFile, JsonSerializer.Serialize(Me, JsonOpts), Encoding.UTF8)
         Catch ex As Exception

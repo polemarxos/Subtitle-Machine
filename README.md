@@ -100,6 +100,7 @@ Stored next to the exe (or in `%LocalAppData%\Subtitle Machine` if that folder i
 | `OverwriteExisting` | `false` | *Redo files that are already finished.* Off: files made in an earlier run (e.g. `Movie.el.srt`) are kept and skipped. On: everything is made again and the old files are replaced – useful after changing the model or glossary |
 | `RemoveHearingImpaired` | `true` | Remove [music], (laughs), JOHN:, ♪ lyrics ♪ before translating |
 | `JobMode` | `translate` | `translate`, or `sync` = only match subtitle timing to the video |
+| `WriteLog` | `true` | Write `subtitle_machine.log` (at 5 MB it becomes `.log.old` and a new one starts – at most ~10 MB) |
 | `AutoSyncSubtitles` | `true` | Match the timing of subtitle files to the speech of the video next to them |
 | `SpellCheck` | `true` | Mark spelling mistakes in the subtitle editor |
 | `UiLanguage` | `auto` | Interface language: `auto` (like Windows), `en`, `el` |

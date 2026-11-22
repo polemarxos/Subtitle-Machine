@@ -31,6 +31,7 @@ Public Class ComponentsForm
     Private ReadOnly chkNotify As New CheckBox()
     Private ReadOnly chkHearing As New CheckBox()
     Private ReadOnly chkSync As New CheckBox()
+    Private ReadOnly chkLog As New CheckBox()
     Private ReadOnly cmbUiLang As New ComboBox()
     Private ReadOnly cmbTheme As New ComboBox()
     Private ReadOnly btnGlossary As New Button()
@@ -57,7 +58,7 @@ Public Class ComponentsForm
         Font = New Font("Segoe UI", 9.0F)
         BackColor = BgDark
         ForeColor = Color.White
-        ClientSize = New Size(780, 800)
+        ClientSize = New Size(780, 828)
         FormBorderStyle = FormBorderStyle.FixedDialog
         MaximizeBox = False
         MinimizeBox = True       ' downloads can take a while – allow minimising
@@ -83,7 +84,7 @@ Public Class ComponentsForm
         AddHandler lv.ItemChecked, Sub() UpdateSelectionSize()
 
         Dim grp As New GroupBox With {.Text = Loc.Tr("Settings"), .ForeColor = Color.White}
-        grp.SetBounds(12, 230, 756, 450)
+        grp.SetBounds(12, 230, 756, 478)
 
         Dim y = 24
         AddRow(grp, Loc.Tr("Whisper model:"), cmbWhisper, y)
@@ -125,6 +126,9 @@ Public Class ComponentsForm
         y += 28
         AddCheck(grp, chkSync, Loc.Tr("Auto-sync downloaded subtitles to the speech of the video next to them"), 12, y)
         chkSync.Width = 700
+        y += 28
+        AddCheck(grp, chkLog, Loc.Tr("Write a log file (for troubleshooting; at most about 10 MB)"), 12, y)
+        chkLog.Width = 700
         y += 32
         AddRow(grp, Loc.Tr("Theme:"), cmbTheme, y)
         cmbTheme.Width = 220
@@ -153,8 +157,8 @@ Public Class ComponentsForm
         btnCancel.Enabled = False
         StyleButton(btnClose, Loc.Tr("Close"), 638, BgControl)
 
-        progress.SetBounds(12, 732, 756, 22)
-        lblStatus.SetBounds(12, 760, 756, 34)
+        progress.SetBounds(12, 760, 756, 22)
+        lblStatus.SetBounds(12, 788, 756, 34)
         lblStatus.Text = Loc.Tr("Ready")
 
         Controls.AddRange(New Control() {lblHardware, lv, grp, btnCheck, btnInstall, btnCancel, btnClose, progress, lblStatus})
@@ -193,7 +197,7 @@ Public Class ComponentsForm
         AddHandler cmbGpu.SelectedIndexChanged, AddressOf OptionsChanged
         AddHandler cmbTheme.SelectedIndexChanged, AddressOf OptionsChanged
         AddHandler cmbUiLang.SelectedIndexChanged, AddressOf OptionsChanged
-        For Each c In New CheckBox() {chkStartup, chkAutoUpdate, chkVad, chkOcr, chkContext, chkFormat, chkKeepSrt, chkNotify, chkHearing, chkSync}
+        For Each c In New CheckBox() {chkStartup, chkAutoUpdate, chkVad, chkOcr, chkContext, chkFormat, chkKeepSrt, chkNotify, chkHearing, chkSync, chkLog}
             AddHandler c.CheckedChanged, AddressOf OptionsChanged
         Next
         AddHandler numLineLen.ValueChanged, AddressOf OptionsChanged
@@ -220,7 +224,7 @@ Public Class ComponentsForm
 
     Private Sub StyleButton(b As Button, caption As String, x As Integer, color As Color)
         b.Text = caption
-        b.SetBounds(x, 692, 130, 30)
+        b.SetBounds(x, 720, 130, 30)
         b.FlatStyle = FlatStyle.Flat
         b.BackColor = color
         b.FlatAppearance.BorderColor = color
@@ -266,6 +270,7 @@ Public Class ComponentsForm
         chkNotify.Checked = _settings.NotifyWhenDone
         chkHearing.Checked = _settings.RemoveHearingImpaired
         chkSync.Checked = _settings.AutoSyncSubtitles
+        chkLog.Checked = _settings.WriteLog
         SelectValue(cmbTheme, _settings.Theme)
         SelectValue(cmbUiLang, _settings.UiLanguage)
         _loading = False
@@ -302,6 +307,7 @@ Public Class ComponentsForm
         _settings.NotifyWhenDone = chkNotify.Checked
         _settings.RemoveHearingImpaired = chkHearing.Checked
         _settings.AutoSyncSubtitles = chkSync.Checked
+        _settings.WriteLog = chkLog.Checked
         Dim newLang = DirectCast(cmbUiLang.SelectedItem, ComboItem).Value
         If newLang <> _settings.UiLanguage Then
             _settings.UiLanguage = newLang
