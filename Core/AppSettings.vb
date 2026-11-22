@@ -32,6 +32,10 @@ Public Class AppSettings
     ''' <summary>Re-wrap long lines and fix too-short / overlapping display times.</summary>
     ''' <summary>Remove texts for the hearing impaired: [MUSIC], (laughs), JOHN:, ♪ lyrics ♪.</summary>
     Public Property RemoveHearingImpaired As Boolean = True
+    ''' <summary>Match the timing of subtitle files to the speech of the video next to them.</summary>
+    Public Property AutoSyncSubtitles As Boolean = True
+    ''' <summary>Mark spelling mistakes in the subtitle editor.</summary>
+    Public Property SpellCheck As Boolean = True
     Public Property FixFormatting As Boolean = True
     Public Property MaxLineLength As Integer = 42
 

@@ -531,3 +531,139 @@ Public Class LocalizationTests
         End Try
     End Sub
 End Class
+
+Public Class SyncTests
+    ''' <summary>Synthetic "speech": random talk bursts; the subtitles are the same bursts (+0.4 s linger).</summary>
+    Private Shared Function MakeTalk(seed As Integer, ByRef cues As List(Of (Start As Double, [End] As Double))) As Byte()
+        Dim rnd As New Random(seed)
+        Dim frames = 60 * 60 * 100 \ 2 ' 30 minutes
+        Dim speech(frames - 1) As Byte
+        cues = New List(Of (Start As Double, [End] As Double))
+        Dim t = 2.0
+        While t < frames / 100.0 - 10
+            Dim d = 0.8 + rnd.NextDouble() * 3.5
+            For i = CInt(t * 100) To CInt((t + d) * 100) - 1
+                If rnd.NextDouble() > 0.12 Then speech(i) = 1 ' pauses between words
+            Next
+            cues.Add((t, t + d + 0.4))
+            t += d + {0.3, 0.6, 1.0, 2.0, 4.0, 8.0}(rnd.Next(6))
+        End While
+        Return speech
+    End Function
+
+    <Fact>
+    Public Sub Fft_RoundTrip()
+        Dim re = {1.0, 2, 3, 4, 0, 0, 0, 0}, im(7) As Double
+        SubtitleSync.Fft(re, im, False)
+        Assert.Equal(10.0, re(0), 6)
+        SubtitleSync.Fft(re, im, True)
+        Assert.Equal(3.0, re(2), 6)
+        Assert.Equal(0.0, re(5), 6)
+    End Sub
+
+    <Theory>
+    <InlineData(0.0, 1.0, False)>
+    <InlineData(-4.37, 1.0, True)>
+    <InlineData(12.8, 1.0, True)>
+    Public Sub FindsOffset(shift As Double, unused As Double, shouldApply As Boolean)
+        Dim truth As List(Of (Start As Double, [End] As Double)) = Nothing
+        Dim speech = MakeTalk(1, truth)
+        Dim shifted = truth.Select(Function(c) (c.Start - shift, c.End - shift)).Where(Function(c) c.Item1 > 0).Select(Function(c) (Start:=c.Item1, [End]:=c.Item2)).ToList()
+        Dim r = SubtitleSync.FindBest(speech, shifted)
+        Assert.Equal(shouldApply, r.ShouldApply)
+        If shouldApply Then Assert.InRange(r.Offset, shift - 0.1, shift + 0.1)
+    End Sub
+
+    <Fact>
+    Public Sub FindsFrameRateDrift()
+        Dim truth As List(Of (Start As Double, [End] As Double)) = Nothing
+        Dim speech = MakeTalk(2, truth)
+        Dim ratio = 25 / (24000 / 1001.0)
+        ' subtitle made for the 25 fps release: everything happens earlier
+        Dim pal = truth.Select(Function(c) (Start:=c.Start / ratio + 1.0, [End]:=c.End / ratio + 1.0)).ToList()
+        Dim r = SubtitleSync.FindBest(speech, pal)
+        Assert.True(r.ShouldApply)
+        Assert.Equal(ratio, r.Ratio, 6)
+        Assert.InRange(r.Offset, -1.0 * ratio - 0.1, -1.0 * ratio + 0.1)
+        Assert.Contains("25 → 23.976 fps", r.Describe())
+    End Sub
+
+    <Fact>
+    Public Sub WrongSubtitles_AreNotChanged()
+        Dim truth As List(Of (Start As Double, [End] As Double)) = Nothing
+        Dim speech = MakeTalk(3, truth)
+        Dim other As List(Of (Start As Double, [End] As Double)) = Nothing
+        MakeTalk(99, other)
+        Assert.False(SubtitleSync.FindBest(speech, other).ShouldApply)
+    End Sub
+
+    <Fact>
+    Public Sub SpeechDetector_IgnoresSteadyNoise()
+        ' 10 s of steady 40 dB "music", with 1 s of 65 dB talk (with short dips) in the middle
+        Dim e(999) As Single
+        For i = 0 To 999 : e(i) = 40 : Next
+        For i = 450 To 549 : e(i) = If(i Mod 20 < 3, 42.0F, 65.0F) : Next
+        Dim s = SubtitleSync.SpeechFromEnergy(e)
+        Assert.Equal(0, s.Take(400).Sum(Function(b) CInt(b)))
+        Assert.True(s.Skip(455).Take(90).All(Function(b) b = 1))
+    End Sub
+
+    <Fact>
+    Public Sub Apply_ShiftsAndScales()
+        Dim cues = New List(Of SrtCue) From {New SrtCue With {.Timing = "00:00:10,000 --> 00:00:12,000", .Text = "Hi"}}
+        Dim r As New SubtitleSync.SyncResult With {.Offset = -1.5, .Ratio = 2}
+        Assert.Equal("00:00:18,500 --> 00:00:22,500", SubtitleSync.Apply(cues, r)(0).Timing)
+    End Sub
+
+    <Fact>
+    Public Sub FindsTheVideoNextToTheSubtitle()
+        Dim dir = Path.Combine(Path.GetTempPath(), "sm_sync_" & Guid.NewGuid().ToString("N"))
+        Directory.CreateDirectory(dir)
+        Try
+            File.WriteAllText(Path.Combine(dir, "Show.S01E01.mkv"), "")
+            File.WriteAllText(Path.Combine(dir, "Show.S01E02.mkv"), "")
+            Assert.Equal(Path.Combine(dir, "Show.S01E01.mkv"), SubtitleSync.FindVideoFor(Path.Combine(dir, "Show.S01E01.en.srt")))
+            Assert.Equal(Path.Combine(dir, "Show.S01E02.mkv"), SubtitleSync.FindVideoFor(Path.Combine(dir, "Show.S01E02.srt")))
+            Assert.Null(SubtitleSync.FindVideoFor(Path.Combine(dir, "Other.srt")))   ' two videos → no guess
+        Finally
+            Directory.Delete(dir, True)
+        End Try
+    End Sub
+End Class
+
+Public Class SpellCheckerTests
+    Private Shared Function Make() As SpellChecker
+        Dim dir = Path.Combine(Path.GetTempPath(), "sm_spell_" & Guid.NewGuid().ToString("N"))
+        Directory.CreateDirectory(dir)
+        File.WriteAllText(Path.Combine(dir, "t.aff"), "SET UTF-8" & vbLf & "TRY αεηιουωςτνρκλμπσδγ" & vbLf, New Text.UTF8Encoding(False))
+        File.WriteAllText(Path.Combine(dir, "t.dic"), "4" & vbLf & "καλημέρα" & vbLf & "σπίτι" & vbLf & "πήγαμε" & vbLf & "στο" & vbLf, New Text.UTF8Encoding(False))
+        Return SpellChecker.FromFiles(Languages.Find("el"), Path.Combine(dir, "t.dic"), Path.Combine(dir, "t.aff"), Path.Combine(dir, "user.txt"))
+    End Function
+
+    <Fact>
+    Public Sub MarksMisspelledWords()
+        Dim sp = Make()
+        Dim m = sp.FindMistakes("Πήγαμε στο σπιτι." & vbCrLf & "<i>Καλημέρα</i>")
+        Assert.Single(m)
+        Assert.Equal("σπιτι", m(0).Word)
+        Assert.Equal(11, m(0).Start)
+        Assert.Contains("σπίτι", sp.Suggest("σπιτι"))
+    End Sub
+
+    <Fact>
+    Public Sub SkipsCapitalsShortWordsAndKnownWords()
+        Dim sp = Make()
+        Assert.Empty(sp.FindMistakes("ΚΑΛΗΜΕΡΑ ΣΠΙΤΙ α"))
+        sp.AddKnownWords({"Τζον"})
+        Assert.Empty(sp.FindMistakes("Τζον"))
+        Assert.Single(sp.FindMistakes("Μέρι"))
+        sp.AddToDictionary("Μέρι")
+        Assert.Empty(sp.FindMistakes("Μέρι"))
+    End Sub
+
+    <Fact>
+    Public Sub HasDictionariesForGreekAndEnglish()
+        Assert.True(SpellChecker.IsSupported(Languages.Find("el")))
+        Assert.True(SpellChecker.IsSupported(Languages.Find("en")))
+    End Sub
+End Class

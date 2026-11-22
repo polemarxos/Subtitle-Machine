@@ -25,7 +25,10 @@ Everything it needs is **downloaded automatically from the official sources** an
 - **Video output:** add the new subtitles into an MKV copy as extra tracks (no re-encoding, language tags set) and/or make an MP4 copy with the subtitles **burned into the picture** (uses the GPU's video encoder when available)
 - **Glossary:** names and terms that must always be translated the same way, or never translated (*Components & settings › Edit glossary*). A starter glossary for English ↔ Greek (about 250 entries: agencies and brands kept as they are, ranks, courtroom and police terms, holidays, common first names in both directions) is created on first start.
 - **Resume:** after Stop, a crash or a power cut, the next Start continues where the translation stopped
+- **Auto-sync of downloaded subtitles:** a subtitle file next to a video with the same name (`Movie.en.srt` + `Movie.mkv`) is matched to the speech in the video's audio. Fixes subtitles that are early or late and the common frame-rate mismatch (a 25 fps subtitle on a 23.976 fps video that drifts more and more). The timing is only changed when the match is clear – subtitles for a different cut are left alone. About 1–2 seconds per hour of video.
 - **Subtitle editor:** double-click a finished file to review original and translation side by side, fix text or times, re-translate selected lines and save
+  - **Spell check** with red underlines, suggestions on right-click, *Add to dictionary* and F7 for the next mistake (LibreOffice Hunspell dictionaries for Greek, English and 18 more languages, downloaded on first use; names from the glossary are never marked)
+  - **Sync to video:** match the timing of any subtitle file to the video with one click
 - **Compare subtitles:** two files side by side, matched by time, with changed words marked, timing differences in orange, and lines that exist in only one file in red/green; *Show only differences* and *Next difference* (F3)
 - **When finished:** do nothing, sleep, hibernate or shut down (with a 60-second countdown you can cancel)
 - **Hearing-impaired cleanup:** removes [MUSIC], (laughs), speaker names like `JOHN:` and ♪ song lyrics ♪ before translating (on by default)
@@ -95,6 +98,8 @@ Stored next to the exe (or in `%LocalAppData%\Subtitle Machine` if that folder i
 | `ReplaceOriginal` | `true` | Write the translation into the original subtitle file (one target language only) |
 | `OverwriteExisting` | `false` | *Redo files that are already finished.* Off: files made in an earlier run (e.g. `Movie.el.srt`) are kept and skipped. On: everything is made again and the old files are replaced – useful after changing the model or glossary |
 | `RemoveHearingImpaired` | `true` | Remove [music], (laughs), JOHN:, ♪ lyrics ♪ before translating |
+| `AutoSyncSubtitles` | `true` | Match the timing of subtitle files to the speech of the video next to them |
+| `SpellCheck` | `true` | Mark spelling mistakes in the subtitle editor |
 | `UiLanguage` | `auto` | Interface language: `auto` (like Windows), `en`, `el` |
 | `AutoUpdateApp` | `true` | Update the app automatically from GitHub |
 | `CheckComponentUpdates` | `true` | Check component updates on startup |

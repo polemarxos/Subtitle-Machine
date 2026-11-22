@@ -78,6 +78,17 @@ Public Class SubtitlePipeline
         Dim notes As New List(Of String)
         If source.Note IsNot Nothing Then notes.Add(source.Note)
         item.SourcePath = source.Path
+
+        ' 1b) Downloaded subtitle file: match its timing to the speech of the video next to it.
+        Dim translateInput = source.Path
+        If Not item.IsVideo AndAlso Not isAudioFile AndAlso _s.AutoSyncSubtitles Then
+            Dim synced = Await SyncToVideoAsync(item.FilePath, source.Path, report, ct)
+            If synced.Path IsNot Nothing Then
+                translateInput = synced.Path
+                item.SourcePath = synced.Path ' the editor pairs lines by time
+            End If
+            If synced.Note IsNot Nothing Then notes.Add(synced.Note)
+        End If
         Dim subtitleFiles As New List(Of (Path As String, Language As LanguageInfo))
         Dim wantsVideo = item.IsVideo AndAlso Not isAudioFile AndAlso _s.VideoOutput <> "none"
         Dim videoShare = If(wantsVideo, 0.3, 0.0) ' part of the progress bar used by MKV / burn-in
@@ -121,7 +132,7 @@ Public Class SubtitlePipeline
 
             If source.Language Is target Then
                 ' Source is already in the target language: just copy/format it.
-                If Not String.Equals(outPath, source.Path, StringComparison.OrdinalIgnoreCase) Then File.Copy(source.Path, outPath, True)
+                If Not String.Equals(outPath, translateInput, StringComparison.OrdinalIgnoreCase) Then File.Copy(translateInput, outPath, True)
                 PostProcess(outPath)
                 notes.Add(Loc.Tr("{0}: already {1}", target.Code, target.DisplayName))
                 item.Outputs.Add(outPath)
@@ -129,7 +140,7 @@ Public Class SubtitlePipeline
                 Continue For
             End If
 
-            Await TranslateFileAsync(source.Path, outPath, source.Language, target,
+            Await TranslateFileAsync(translateInput, outPath, source.Language, target,
                                      Sub(done, total) report(Loc.Tr("{0}: translating {1}/{2} lines → {3}", name, done, total, target.DisplayName), baseFrac + span * done / Math.Max(1, total)),
                                      ct)
             item.Outputs.Add(outPath)
@@ -226,6 +237,52 @@ Public Class SubtitlePipeline
         End If
         Dim r = Await TranscribeAsync(item.FilePath, audio, report, ct)
         Return New SourceResult With {.Path = r.Item1, .Language = If(r.Item2, _sourceSetting), .Note = Loc.Tr("from audio")}
+    End Function
+
+    ''' <summary>
+    ''' Syncs a subtitle file to the video with the same name. Returns the synced copy (Nothing when the
+    ''' timing is already right, no video was found or the match was not clear) and a note for the status.
+    ''' </summary>
+    Private Async Function SyncToVideoAsync(srtPath As String, sourcePath As String, report As Action(Of String, Double), ct As CancellationToken) As Task(Of (Path As String, Note As String))
+        Dim video = SubtitleSync.FindVideoFor(srtPath)
+        If video Is Nothing Then Return (Nothing, Nothing)
+        Dim name = Path.GetFileName(srtPath)
+        Try
+            Dim streams = Await ProbeStreamsAsync(video, ct)
+            Dim audio = PickAudioStream(streams)
+            If audio Is Nothing Then Return (Nothing, Nothing)
+            Dim duration = Await ProbeDurationAsync(video, ct)
+            report(Loc.Tr("{0}: matching the timing to the video", name), 0.02)
+            Dim temp = SyncedCopyPath(srtPath)
+            Dim r = Await SubtitleSync.SyncFileAsync(FfmpegComponent.FfmpegExe, video, audio.SubIndex, sourcePath, temp, ct,
+                                                    Sub(f) report(Loc.Tr("{0}: matching the timing to the video {1:P0}", name, f), 0.02 + 0.08 * f), duration)
+            If r.ShouldApply Then Return (temp, Loc.Tr("timing fixed: {0}", r.Describe()))
+            If r.Reason = "already in sync" Then Return (Nothing, Nothing)
+            Return (Nothing, Loc.Tr("timing not changed – no clear match with the video"))
+        Catch ex As OperationCanceledException
+            Throw
+        Catch ex As Exception
+            Logger.Log("Sync failed: " & ex.Message)
+            Return (Nothing, Loc.Tr("timing not checked"))
+        End Try
+    End Function
+
+    ''' <summary>Synced copies of the originals are kept for 14 days in the data folder (the editor shows them next to the translation).</summary>
+    Private Shared Function SyncedCopyPath(srtPath As String) As String
+        Dim dir = AppPaths.EnsureDir(Path.Combine(AppPaths.DataDir, "synced"))
+        Try
+            For Each f In Directory.GetFiles(dir, "*.srt")
+                If File.GetLastWriteTimeUtc(f) < DateTime.UtcNow.AddDays(-14) Then File.Delete(f)
+            Next
+        Catch
+        End Try
+        Return Path.Combine(dir, Path.GetFileNameWithoutExtension(srtPath) & "." & Guid.NewGuid().ToString("N").Substring(0, 8) & ".srt")
+    End Function
+
+    Public Shared Async Function ProbeDurationAsync(media As String, ct As CancellationToken) As Task(Of Double)
+        Dim r = Await ProcessRunner.RunAsync(FfmpegComponent.FfprobeExe, $"-v error -show_entries format=duration -of csv=p=0 ""{media}""", ct)
+        Dim d As Double
+        Return If(Double.TryParse(r.StdOut.Trim(), Globalization.NumberStyles.Float, Globalization.CultureInfo.InvariantCulture, d), d, 0)
     End Function
 
     ''' <summary>Hearing-impaired cleanup and line/timing fixes for files that are not translated.</summary>
