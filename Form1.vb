@@ -30,7 +30,32 @@ Public Class Form1
             Catch
             End Try
         End If
+        ' The interface language must be known before any window is built.
+        _settings = AppSettings.Load()
+        Loc.Init(_settings.UiLanguage)
         InitializeComponent()
+        Localizer.Apply(Me)
+        FitButtonsToText()
+    End Sub
+
+    ''' <summary>Translated captions can be longer (Greek) – widen the toolbar/header buttons and line them up again.</summary>
+    Private Sub FitButtonsToText()
+        Dim fit = Sub(b As Button)
+                      Dim need = TextRenderer.MeasureText(b.Text, b.Font).Width + 28
+                      If need > b.Width Then b.Width = need
+                  End Sub
+        Dim x = btnAddFiles.Left
+        For Each b In New Button() {btnAddFiles, btnAddFolder, btnRemove, btnClear, btnCompare}
+            fit(b)
+            b.Left = x
+            x = b.Right + 6
+        Next
+        Dim right = pnlHeader.ClientSize.Width - 12
+        For Each b In New Button() {btnUpdate, btnComponents}
+            fit(b)
+            b.Left = right - b.Width
+            right = b.Left - 6
+        Next
     End Sub
 
     ' =====================================================================
@@ -43,42 +68,41 @@ Public Class Form1
         Logger.Log($"=== Subtitle Machine {ver} started. Data folder: {AppPaths.DataDir} ===")
         AppPaths.MigrateLegacyLayout()
         SelfUpdater.CleanupLeftovers()
-        _settings = AppSettings.Load()
         SubtitlePipeline.OcrFactory = AddressOf WindowsOcr.Create
 
         _loadingUi = True
-        cmbSource.Items.Add("Auto-detect")
+        cmbSource.Items.Add(Loc.Tr("Auto-detect"))
         For Each l In Languages.All
             cmbSource.Items.Add(l)
         Next
         BuildTargetPicker()
-        cmbSubSource.Items.AddRange(New Object() {"Embedded subtitles, otherwise audio", "Embedded subtitles only", "Audio only (Whisper speech-to-text)"})
+        cmbSubSource.Items.AddRange(New Object() {Loc.Tr("Embedded subtitles, otherwise audio"), Loc.Tr("Embedded subtitles only"), Loc.Tr("Audio only (Whisper speech-to-text)")})
         cmbSubSource.SelectedIndex = Array.IndexOf({"auto", "embedded", "audio"}, _settings.SubtitleSource)
         Dim src = Languages.Find(_settings.TranscribeLanguage)
         If src IsNot Nothing Then cmbSource.SelectedItem = src Else cmbSource.SelectedIndex = 0
         chkReplaceOriginal.Checked = _settings.ReplaceOriginal
         chkOverwrite.Checked = _settings.OverwriteExisting
-        lblGpu.Text = "GPU: " & HardwareInfo.Gpu.ToString()
+        lblGpu.Text = Loc.Tr("GPU: ") & HardwareInfo.Gpu.ToString()
         _loadingUi = False
         PopulateModelCombo()
         UpdateTargetsText()
         UpdateUiState()
         toolTip.SetToolTip(chkOverwrite,
-            "Example: you already made Movie.el.srt yesterday and add Movie.mkv to the list again." & vbCrLf & vbCrLf &
-            "Unticked (normal): Movie.el.srt is left as it is and the file is skipped – fast, nothing is lost." & vbCrLf &
-            "Ticked: everything is made again from the start and the old files are replaced." & vbCrLf & vbCrLf &
-            "Tick it after changing the AI model, the glossary or the Whisper model, or when a result was bad.")
-        toolTip.SetToolTip(cmbModel, "Google TranslateGemma, running locally with llama.cpp." & vbCrLf & "Automatic chooses the size that fits your graphics card.")
-        toolTip.SetToolTip(cmbSubSource, "Embedded: use subtitles inside the video (text, or image subtitles read with OCR)." & vbCrLf &
-                                         "Audio: always create the subtitles from the speech with Whisper.")
-        toolTip.SetToolTip(btnTargets, "Choose one or more languages – one subtitle file is created per language.")
-        toolTip.SetToolTip(cmbVideoOut, "MKV: the new subtitles are added to a copy of the video as extra tracks (fast, no quality loss)." & vbCrLf &
-                                        "Burned-in: an MP4 copy with the subtitles drawn on the picture (first language; takes longer).")
+            Loc.Tr("Example: you already made Movie.el.srt yesterday and add Movie.mkv to the list again.") & vbCrLf & vbCrLf &
+            Loc.Tr("Unticked (normal): Movie.el.srt is left as it is and the file is skipped – fast, nothing is lost.") & vbCrLf &
+            Loc.Tr("Ticked: everything is made again from the start and the old files are replaced.") & vbCrLf & vbCrLf &
+            Loc.Tr("Tick it after changing the AI model, the glossary or the Whisper model, or when a result was bad."))
+        toolTip.SetToolTip(cmbModel, Loc.Tr("Google TranslateGemma, running locally with llama.cpp.") & vbCrLf & Loc.Tr("Automatic chooses the size that fits your graphics card."))
+        toolTip.SetToolTip(cmbSubSource, Loc.Tr("Embedded: use subtitles inside the video (text, or image subtitles read with OCR).") & vbCrLf &
+                                         Loc.Tr("Audio: always create the subtitles from the speech with Whisper."))
+        toolTip.SetToolTip(btnTargets, Loc.Tr("Choose one or more languages – one subtitle file is created per language."))
+        toolTip.SetToolTip(cmbVideoOut, Loc.Tr("MKV: the new subtitles are added to a copy of the video as extra tracks (fast, no quality loss).") & vbCrLf &
+                                        Loc.Tr("Burned-in: an MP4 copy with the subtitles drawn on the picture (first language; takes longer)."))
 
         _loadingUi = True
-        cmbVideoOut.Items.AddRange(New Object() {"Subtitle files only", "Also add subtitles into the video (MKV)", "Also burn subtitles into the picture (MP4)", "Both MKV and burned-in MP4"})
+        cmbVideoOut.Items.AddRange(New Object() {Loc.Tr("Subtitle files only"), Loc.Tr("Also add subtitles into the video (MKV)"), Loc.Tr("Also burn subtitles into the picture (MP4)"), Loc.Tr("Both MKV and burned-in MP4")})
         cmbVideoOut.SelectedIndex = Array.IndexOf({"none", "mkv", "burn", "both"}, _settings.VideoOutput)
-        cmbWhenDone.Items.AddRange(New Object() {"Do nothing", "Sleep", "Hibernate", "Shut down"})
+        cmbWhenDone.Items.AddRange(New Object() {Loc.Tr("Do nothing"), Loc.Tr("Sleep"), Loc.Tr("Hibernate"), Loc.Tr("Shut down")})
         cmbWhenDone.SelectedIndex = 0
         _loadingUi = False
 
@@ -89,7 +113,7 @@ Public Class Form1
         ApplyTheme()
 
         _notify.Icon = Icon
-        _notify.Text = "Subtitle Machine"
+        _notify.Text = Loc.Tr("Subtitle Machine")
 
     End Sub
 
@@ -98,9 +122,9 @@ Public Class Form1
         ' Missing tools → offer to download everything.
         Dim missing = DependencyManager.MissingRequired(_settings)
         If missing.Count > 0 Then
-            If MessageBox.Show(Me, "Subtitle Machine needs these components. They will be downloaded from their official sites:" & vbCrLf & vbCrLf &
-                               String.Join(vbCrLf, missing.Select(Function(c) "  • " & c.DisplayName)) & vbCrLf & vbCrLf & "Download them now?",
-                               "Subtitle Machine – setup", MessageBoxButtons.YesNo, MessageBoxIcon.Information) = DialogResult.Yes Then
+            If MessageBox.Show(Me, Loc.Tr("Subtitle Machine needs these components. They will be downloaded from their official sites:") & vbCrLf & vbCrLf &
+                               String.Join(vbCrLf, missing.Select(Function(c) "  • " & c.DisplayName)) & vbCrLf & vbCrLf & Loc.Tr("Download them now?"),
+                               Loc.Tr("Subtitle Machine – setup"), MessageBoxButtons.YesNo, MessageBoxIcon.Information) = DialogResult.Yes Then
                 ShowComponents(autoInstall:=True)
             End If
         End If
@@ -114,9 +138,9 @@ Public Class Form1
         cmbModel.Items.Clear()
         Dim rec = HardwareInfo.RecommendedTranslateSize()
         Dim recInfo = TranslateModelComponent.Sizes.First(Function(x) x.Tag = rec)
-        cmbModel.Items.Add(New ModelChoice With {.Size = "auto", .Caption = $"Automatic – TranslateGemma {rec.ToUpperInvariant()} for your GPU ({recInfo.Download}){Downloaded(rec)}"})
+        cmbModel.Items.Add(New ModelChoice With {.Size = "auto", .Caption = Loc.Tr("Automatic – TranslateGemma {0} for your GPU ({1}){2}", rec.ToUpperInvariant(), recInfo.Download, Downloaded(rec))})
         For Each m In TranslateModelComponent.Sizes
-            cmbModel.Items.Add(New ModelChoice With {.Size = m.Tag, .Caption = $"TranslateGemma {m.Tag.ToUpperInvariant()} – {m.Download}, {m.Vram}{Downloaded(m.Tag)}"})
+            cmbModel.Items.Add(New ModelChoice With {.Size = m.Tag, .Caption = Loc.Tr("TranslateGemma {0} – {1}, {2}{3}", m.Tag.ToUpperInvariant(), m.Download, m.Vram, Downloaded(m.Tag))})
         Next
         cmbModel.SelectedItem = If(cmbModel.Items.Cast(Of ModelChoice)().FirstOrDefault(Function(c) c.Size = _settings.TranslateModelSize), cmbModel.Items(0))
         _loadingUi = False
@@ -164,12 +188,12 @@ Public Class Form1
     End Sub
 
     Private Sub UpdateTargetsText()
-        Dim names = _settings.Targets().Select(Function(l) l.Name).ToList()
-        btnTargets.Text = If(names.Count <= 3, String.Join(", ", names), $"{names.Count} languages") & "  ▾"
-        chkReplaceOriginal.Text = "Replace original subtitle file"
+        Dim names = _settings.Targets().Select(Function(l) l.DisplayName).ToList()
+        btnTargets.Text = If(names.Count <= 3, String.Join(", ", names), Loc.Tr("{0} languages", names.Count)) & "  ▾"
+        chkReplaceOriginal.Text = Loc.Tr("Replace original subtitle file")
         toolTip.SetToolTip(chkReplaceOriginal, If(_settings.TargetLanguages.Count = 1,
-            $"On: the translation is written into the original subtitle file (e.g. Movie.srt)." & vbCrLf & $"Off: a new file is created (e.g. Movie.{_settings.TargetLanguages(0)}.srt) and the original is kept.",
-            "Only possible with one target language – with several languages each one gets its own file (Movie.el.srt, Movie.en.srt…)."))
+            Loc.Tr("On: the translation is written into the original subtitle file (e.g. Movie.srt).") & vbCrLf & Loc.Tr("Off: a new file is created (e.g. Movie.{0}.srt) and the original is kept.", _settings.TargetLanguages(0)),
+            Loc.Tr("Only possible with one target language – with several languages each one gets its own file (Movie.el.srt, Movie.en.srt…).")))
     End Sub
 
     ' =====================================================================
@@ -195,11 +219,11 @@ Public Class Form1
         _settings.TranslateModelSize = c.Size
         _settings.Save()
         If Not New TranslateModelComponent(_settings).IsInstalled() Then
-            lblStatus.Text = $"TranslateGemma {_settings.EffectiveModelSize().ToUpperInvariant()} is not downloaded yet – it will be offered when you press Start."
+            lblStatus.Text = Loc.Tr("TranslateGemma {0} is not downloaded yet – it will be offered when you press Start.", _settings.EffectiveModelSize().ToUpperInvariant())
         End If
         If c.Size = "27b" AndAlso HardwareInfo.Gpu.VramGB < HardwareInfo.VramFor27B OrElse
            c.Size = "12b" AndAlso HardwareInfo.Gpu.VramGB < HardwareInfo.VramFor12B Then
-            lblStatus.Text = "Note: this model is larger than your GPU memory – it will work, but slower (partly on the CPU)."
+            lblStatus.Text = Loc.Tr("Note: this model is larger than your GPU memory – it will work, but slower (partly on the CPU).")
         End If
     End Sub
 
@@ -224,7 +248,7 @@ Public Class Form1
         End Using
         PopulateModelCombo()
         ApplyTheme()
-        lblStatus.Text = If(DependencyManager.MissingRequired(_settings).Count = 0, "Ready", "Some components are missing – click Components.")
+        lblStatus.Text = If(DependencyManager.MissingRequired(_settings).Count = 0, Loc.Tr("Ready"), Loc.Tr("Some components are missing – click Components."))
     End Sub
 
     ''' <summary>Checks GitHub; downloads a newer version in the background. It is installed when the app closes (or on "Restart now").</summary>
@@ -238,25 +262,25 @@ Public Class Form1
                 Dim rel = Await SelfUpdater.CheckAsync(cts.Token)
                 If rel Is Nothing Then Return False
                 Logger.Log($"New version {rel.Tag} found, downloading…")
-                Dim p As New Progress(Of DownloadProgress)(Sub(d) If interactive Then lblStatus.Text = $"Downloading update {rel.Tag}… {d.Percent}%")
+                Dim p As New Progress(Of DownloadProgress)(Sub(d) If interactive Then lblStatus.Text = Loc.Tr("Downloading update {0}… {1}%", rel.Tag, d.Percent))
                 Await SelfUpdater.DownloadAsync(rel, p, cts.Token)
                 ShowUpdateBanner()
                 Return True
             End Using
         Catch ex As Exception
             Logger.Log("App update check failed: " & ex.Message)
-            If interactive Then MessageBox.Show(Me, "Could not check for updates: " & ex.Message, "Update", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            If interactive Then MessageBox.Show(Me, Loc.Tr("Could not check for updates: ") & ex.Message, Loc.Tr("Update"), MessageBoxButtons.OK, MessageBoxIcon.Warning)
             Return False
         End Try
     End Function
 
     Private Sub ShowUpdateBanner()
-        lblUpdate.Text = $"Subtitle Machine {SelfUpdater.PendingTag} has been downloaded. It will be installed when you close the app."
+        lblUpdate.Text = Loc.Tr("Subtitle Machine {0} has been downloaded. It will be installed when you close the app.", SelfUpdater.PendingTag)
         pnlUpdate.Visible = True
     End Sub
 
     Private Sub btnRestart_Click(sender As Object, e As EventArgs) Handles btnRestart.Click
-        If _cts IsNot Nothing AndAlso MessageBox.Show(Me, "Processing is running. Stop it and restart?", "Restart", MessageBoxButtons.YesNo, MessageBoxIcon.Question) <> DialogResult.Yes Then Return
+        If _cts IsNot Nothing AndAlso MessageBox.Show(Me, Loc.Tr("Processing is running. Stop it and restart?"), Loc.Tr("Restart"), MessageBoxButtons.YesNo, MessageBoxIcon.Question) <> DialogResult.Yes Then Return
         _cts?.Cancel()
         _restartAfterUpdate = True
         Close()
@@ -273,7 +297,7 @@ Public Class Form1
                     Catch
                     End Try
                 Next
-                If outdated.Count > 0 AndAlso _cts Is Nothing Then lblStatus.Text = $"Updates available: {String.Join(", ", outdated)} – click Components."
+                If outdated.Count > 0 AndAlso _cts Is Nothing Then lblStatus.Text = Loc.Tr("Updates available: {0} – click Components.", String.Join(", ", outdated))
             End Using
         Catch ex As Exception
             Logger.Log("Component update check failed: " & ex.Message)
@@ -282,14 +306,14 @@ Public Class Form1
 
     Private Async Sub btnUpdate_Click(sender As Object, e As EventArgs) Handles btnUpdate.Click
         btnUpdate.Enabled = False
-        lblStatus.Text = "Checking for a new version…"
+        lblStatus.Text = Loc.Tr("Checking for a new version…")
         Try
             If Await AutoUpdateAppAsync(interactive:=True) Then
-                lblStatus.Text = "Update ready."
-                If MessageBox.Show(Me, $"Version {SelfUpdater.PendingTag} is ready. Restart now to install it?", "Update",
+                lblStatus.Text = Loc.Tr("Update ready.")
+                If MessageBox.Show(Me, Loc.Tr("Version {0} is ready. Restart now to install it?", SelfUpdater.PendingTag), Loc.Tr("Update"),
                                    MessageBoxButtons.YesNo, MessageBoxIcon.Question) = DialogResult.Yes Then btnRestart.PerformClick()
             Else
-                lblStatus.Text = "Subtitle Machine is up to date."
+                lblStatus.Text = Loc.Tr("Subtitle Machine is up to date.")
                 ShowComponents(autoInstall:=False) ' also check FFmpeg, Whisper, llama.cpp and the models
             End If
         Finally
@@ -302,13 +326,13 @@ Public Class Form1
     ' =====================================================================
     Private Sub btnAddFiles_Click(sender As Object, e As EventArgs) Handles btnAddFiles.Click
         Dim exts = String.Join(";", SubtitlePipeline.VideoExtensions.Concat(SubtitlePipeline.AudioExtensions).Concat({".srt"}).Select(Function(x) "*" & x))
-        Using ofd As New OpenFileDialog With {.Filter = $"Video, audio & subtitles|{exts}|All files|*.*", .Multiselect = True}
+        Using ofd As New OpenFileDialog With {.Filter = Loc.Tr("Video, audio & subtitles") & $"|{exts}|" & Loc.Tr("All files") & "|*.*", .Multiselect = True}
             If ofd.ShowDialog(Me) = DialogResult.OK Then AddPaths(ofd.FileNames)
         End Using
     End Sub
 
     Private Sub btnAddFolder_Click(sender As Object, e As EventArgs) Handles btnAddFolder.Click
-        Using fbd As New FolderBrowserDialog With {.Description = "Choose a folder – all videos, audio and .srt files inside (and in subfolders) will be added."}
+        Using fbd As New FolderBrowserDialog With {.Description = Loc.Tr("Choose a folder – all videos, audio and .srt files inside (and in subfolders) will be added.")}
             If fbd.ShowDialog(Me) = DialogResult.OK Then AddPaths({fbd.SelectedPath})
         End Using
     End Sub
@@ -349,7 +373,7 @@ Public Class Form1
             End If
         Next
         lvTasks.EndUpdate()
-        lblStatus.Text = If(added > 0, $"{added} file(s) added – {Tasks.Count} in the list.", "No supported files found.")
+        lblStatus.Text = If(added > 0, Loc.Tr("{0} file(s) added – {1} in the list.", added, Tasks.Count), Loc.Tr("No supported files found."))
         UpdateUiState()
     End Sub
 
@@ -390,7 +414,7 @@ Public Class Form1
         If _cts IsNot Nothing Then Return
         Tasks.Clear()
         lvTasks.Items.Clear()
-        lblStatus.Text = "Ready"
+        lblStatus.Text = Loc.Tr("Ready")
         progressBar.Value = 0
         UpdateUiState()
     End Sub
@@ -522,8 +546,8 @@ Public Class Form1
 
         Dim missing = DependencyManager.MissingRequired(_settings)
         If missing.Count > 0 Then
-            If MessageBox.Show(Me, "Missing components:" & vbCrLf & String.Join(vbCrLf, missing.Select(Function(c) "  • " & c.DisplayName)) &
-                               vbCrLf & vbCrLf & "Download them now?", "Subtitle Machine", MessageBoxButtons.YesNo, MessageBoxIcon.Question) <> DialogResult.Yes Then Return
+            If MessageBox.Show(Me, Loc.Tr("Missing components:") & vbCrLf & String.Join(vbCrLf, missing.Select(Function(c) "  • " & c.DisplayName)) &
+                               vbCrLf & vbCrLf & Loc.Tr("Download them now?"), "Subtitle Machine", MessageBoxButtons.YesNo, MessageBoxIcon.Question) <> DialogResult.Yes Then Return
             ShowComponents(autoInstall:=True)
             If DependencyManager.MissingRequired(_settings).Count > 0 Then Return
         End If
@@ -590,15 +614,15 @@ Public Class Form1
                 RefreshTaskRow(item)
             Next
             progressBar.Value = 100
-            lblStatus.Text = If(failed = 0, $"All done – {pending.Count} file(s) processed.", $"Finished – {failed} of {pending.Count} file(s) failed (see the list or the log).")
+            lblStatus.Text = If(failed = 0, Loc.Tr("All done – {0} file(s) processed.", pending.Count), Loc.Tr("Finished – {0} of {1} file(s) failed (see the list or the log).", failed, pending.Count))
             NotifyFinished(pending.Count, failed)
             runWhenDone = True
         Catch ex As OperationCanceledException
-            lblStatus.Text = "Cancelled."
+            lblStatus.Text = Loc.Tr("Cancelled.")
         Catch ex As Exception
             Logger.Log("ERROR: " & ex.ToString())
-            lblStatus.Text = "Error – " & ex.Message.Split({vbCr, vbLf}, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()
-            MessageBox.Show(Me, ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            lblStatus.Text = Loc.Tr("Error – ") & ex.Message.Split({vbCr, vbLf}, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()
+            MessageBox.Show(Me, ex.Message, Loc.Tr("Error"), MessageBoxButtons.OK, MessageBoxIcon.Error)
         Finally
             progressBar.Style = ProgressBarStyle.Continuous
             _cts.Dispose()
@@ -619,8 +643,8 @@ Public Class Form1
         If Form.ActiveForm Is Me AndAlso WindowState <> FormWindowState.Minimized Then Return
         Try
             _notify.Visible = True
-            Dim text = If(failed = 0, $"{total} file(s) processed successfully.", $"{total - failed} of {total} file(s) done, {failed} failed.")
-            _notify.ShowBalloonTip(8000, "Subtitle Machine – finished", text, If(failed = 0, ToolTipIcon.Info, ToolTipIcon.Warning))
+            Dim text = If(failed = 0, Loc.Tr("{0} file(s) processed successfully.", total), Loc.Tr("{0} of {1} file(s) done, {2} failed.", total - failed, total, failed))
+            _notify.ShowBalloonTip(8000, Loc.Tr("Subtitle Machine – finished"), text, If(failed = 0, ToolTipIcon.Info, ToolTipIcon.Warning))
         Catch ex As Exception
             Logger.Log("Notification failed: " & ex.Message)
         End Try
@@ -635,9 +659,9 @@ Public Class Form1
     Private Sub RunWhenDoneAction()
         Dim action = {"nothing", "sleep", "hibernate", "shutdown"}(Math.Max(0, cmbWhenDone.SelectedIndex))
         If action = "nothing" Then Return
-        Dim verb = {"", "go to sleep", "hibernate", "shut down"}(cmbWhenDone.SelectedIndex)
-        If Not WhenDoneCountdown.Confirm(Me, $"The PC will {verb} in", 60) Then
-            lblStatus.Text = "Cancelled – the PC stays on."
+        Dim message = {"", Loc.Tr("The PC will go to sleep in {0} seconds."), Loc.Tr("The PC will hibernate in {0} seconds."), Loc.Tr("The PC will shut down in {0} seconds.")}(cmbWhenDone.SelectedIndex)
+        If Not WhenDoneCountdown.Confirm(Me, message, 60) Then
+            lblStatus.Text = Loc.Tr("Cancelled – the PC stays on.")
             Return
         End If
         Logger.Log("When finished: " & action)
@@ -668,7 +692,7 @@ Public Class Form1
 
     Private Sub btnStop_Click(sender As Object, e As EventArgs) Handles btnStop.Click
         If _cts Is Nothing Then Return
-        lblStatus.Text = "Cancelling…"
+        lblStatus.Text = Loc.Tr("Cancelling…")
         btnStop.Enabled = False
         _cts.Cancel()
     End Sub
@@ -715,9 +739,9 @@ Friend Class WhenDoneCountdown
         TopMost = True
         _label.SetBounds(16, 16, 348, 50)
         _label.TextAlign = ContentAlignment.MiddleCenter
-        Dim btnNow As New Button With {.Text = "Do it now", .DialogResult = DialogResult.OK, .Tag = "accent"}
+        Dim btnNow As New Button With {.Text = Loc.Tr("Do it now"), .DialogResult = DialogResult.OK, .Tag = "accent"}
         btnNow.SetBounds(90, 80, 100, 32)
-        Dim btnCancel As New Button With {.Text = "Cancel", .DialogResult = DialogResult.Cancel}
+        Dim btnCancel As New Button With {.Text = Loc.Tr("Cancel"), .DialogResult = DialogResult.Cancel}
         btnCancel.SetBounds(196, 80, 100, 32)
         Controls.AddRange(New Control() {_label, btnNow, btnCancel})
         CancelButton = btnCancel
@@ -734,7 +758,7 @@ Friend Class WhenDoneCountdown
     End Sub
 
     Private Sub UpdateText()
-        _label.Text = $"{_message} {_left} seconds."
+        _label.Text = String.Format(_message, _left)
     End Sub
 
     Public Shared Function Confirm(owner As IWin32Window, message As String, seconds As Integer) As Boolean

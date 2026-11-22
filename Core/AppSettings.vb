@@ -54,6 +54,9 @@ Public Class AppSettings
     ''' <summary>Windows notification + sound when a batch finishes.</summary>
     Public Property NotifyWhenDone As Boolean = True
 
+    ''' <summary>Interface language: "auto" (like Windows), "en" or "el".</summary>
+    Public Property UiLanguage As String = "auto"
+
     Public Property AutoUpdateApp As Boolean = True
     Public Property CheckComponentUpdates As Boolean = True
 
@@ -103,6 +106,7 @@ Public Class AppSettings
         If Not {"none", "mkv", "burn", "both"}.Contains(VideoOutput) Then VideoOutput = "none"
         If Not {"nothing", "sleep", "hibernate", "shutdown"}.Contains(WhenDone) Then WhenDone = "nothing"
         If Not {"system", "dark", "light"}.Contains(Theme) Then Theme = "system"
+        If Not {"auto", "en", "el"}.Contains(UiLanguage) Then UiLanguage = "auto"
     End Sub
 
     Public Sub Save()

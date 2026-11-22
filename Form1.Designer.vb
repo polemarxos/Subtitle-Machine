@@ -104,7 +104,7 @@ Partial Class Form1
         lblVersion.ForeColor = Color.FromArgb(CByte(150), CByte(150), CByte(150))
         lblVersion.Location = New Point(186, 21)
         lblVersion.Name = "lblVersion"
-        lblVersion.Text = "v1.4.2"
+        lblVersion.Text = "v1.5.0"
         '
         ' btnComponents
         '

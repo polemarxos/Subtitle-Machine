@@ -30,6 +30,7 @@ Public Class ComponentsForm
     Private ReadOnly chkKeepSrt As New CheckBox()
     Private ReadOnly chkNotify As New CheckBox()
     Private ReadOnly chkHearing As New CheckBox()
+    Private ReadOnly cmbUiLang As New ComboBox()
     Private ReadOnly cmbTheme As New ComboBox()
     Private ReadOnly btnGlossary As New Button()
     Private ReadOnly btnCheck As New Button()
@@ -51,11 +52,11 @@ Public Class ComponentsForm
 
     Private Sub BuildUi()
         SuspendLayout()
-        Text = "Components & settings"
+        Text = Loc.Tr("Components & settings")
         Font = New Font("Segoe UI", 9.0F)
         BackColor = BgDark
         ForeColor = Color.White
-        ClientSize = New Size(780, 740)
+        ClientSize = New Size(780, 772)
         FormBorderStyle = FormBorderStyle.FixedDialog
         MaximizeBox = False
         MinimizeBox = True       ' downloads can take a while – allow minimising
@@ -63,8 +64,8 @@ Public Class ComponentsForm
         ShowInTaskbar = True     ' visible in the taskbar (also on first start, before the main window)
 
         lblHardware.SetBounds(12, 10, 756, 36)
-        lblHardware.Text = $"Detected GPU: {HardwareInfo.Gpu}" & vbCrLf &
-                           $"Recommended: TranslateGemma {HardwareInfo.RecommendedTranslateSize().ToUpperInvariant()} with {HardwareInfo.RecommendedGpuBackend().ToUpperInvariant()} acceleration"
+        lblHardware.Text = Loc.Tr("Detected GPU: {0}", HardwareInfo.Gpu) & vbCrLf &
+                           Loc.Tr("Recommended: TranslateGemma {0} with {1} acceleration", HardwareInfo.RecommendedTranslateSize().ToUpperInvariant(), HardwareInfo.RecommendedGpuBackend().ToUpperInvariant())
 
         lv.SetBounds(12, 52, 756, 170)
         lv.View = View.Details
@@ -80,54 +81,60 @@ Public Class ComponentsForm
         lv.Columns.Add("Status", 140)
         AddHandler lv.ItemChecked, Sub() UpdateSelectionSize()
 
-        Dim grp As New GroupBox With {.Text = "Settings", .ForeColor = Color.White}
-        grp.SetBounds(12, 230, 756, 390)
+        Dim grp As New GroupBox With {.Text = Loc.Tr("Settings"), .ForeColor = Color.White}
+        grp.SetBounds(12, 230, 756, 422)
 
         Dim y = 24
-        AddRow(grp, "Whisper model:", cmbWhisper, y)
+        AddRow(grp, Loc.Tr("Whisper model:"), cmbWhisper, y)
         For Each m In WhisperModelComponent.Models
             cmbWhisper.Items.Add(New ComboItem(m.Name, m.Description))
         Next
         y += 30
-        AddRow(grp, "Translation model:", cmbSize, y)
-        cmbSize.Items.Add(New ComboItem("auto", $"Automatic – by GPU memory (→ {HardwareInfo.RecommendedTranslateSize().ToUpperInvariant()})"))
+        AddRow(grp, Loc.Tr("Translation model:"), cmbSize, y)
+        cmbSize.Items.Add(New ComboItem("auto", Loc.Tr("Automatic – by GPU memory (→ {0})", HardwareInfo.RecommendedTranslateSize().ToUpperInvariant())))
         For Each m In TranslateModelComponent.Sizes
-            cmbSize.Items.Add(New ComboItem(m.Tag, $"TranslateGemma {m.Tag.ToUpperInvariant()} – {m.Download}, {m.Vram}"))
+            cmbSize.Items.Add(New ComboItem(m.Tag, Loc.Tr("TranslateGemma {0} – {1}, {2}", m.Tag.ToUpperInvariant(), m.Download, m.Vram)))
         Next
         y += 30
-        AddRow(grp, "GPU acceleration:", cmbGpu, y)
-        cmbGpu.Items.Add(New ComboItem("auto", $"Automatic (→ {HardwareInfo.RecommendedGpuBackend().ToUpperInvariant()})"))
-        cmbGpu.Items.Add(New ComboItem("cuda", "CUDA – NVIDIA (fastest)"))
-        cmbGpu.Items.Add(New ComboItem("vulkan", "Vulkan – AMD / Intel / NVIDIA (Whisper uses CPU)"))
-        cmbGpu.Items.Add(New ComboItem("cpu", "CPU only (slow)"))
+        AddRow(grp, Loc.Tr("GPU acceleration:"), cmbGpu, y)
+        cmbGpu.Items.Add(New ComboItem("auto", Loc.Tr("Automatic (→ {0})", HardwareInfo.RecommendedGpuBackend().ToUpperInvariant())))
+        cmbGpu.Items.Add(New ComboItem("cuda", Loc.Tr("CUDA – NVIDIA (fastest)")))
+        cmbGpu.Items.Add(New ComboItem("vulkan", Loc.Tr("Vulkan – AMD / Intel / NVIDIA (Whisper uses CPU)")))
+        cmbGpu.Items.Add(New ComboItem("cpu", Loc.Tr("CPU only (slow)")))
         y += 36
-        AddCheck(grp, chkVad, "Voice detection: Whisper skips silence (fewer invented lines)", 12, y)
-        AddCheck(grp, chkOcr, "Read image subtitles (PGS / VobSub) with Windows OCR", 390, y)
+        AddCheck(grp, chkVad, Loc.Tr("Voice detection: Whisper skips silence (fewer invented lines)"), 12, y)
+        AddCheck(grp, chkOcr, Loc.Tr("Read image subtitles (PGS / VobSub) with Windows OCR"), 390, y)
         y += 28
-        AddCheck(grp, chkContext, "Translate lines in context (consistent names, gender, tone)", 12, y)
-        AddCheck(grp, chkFormat, "Fix line length && timing – max characters per line:", 390, y)
+        AddCheck(grp, chkContext, Loc.Tr("Translate lines in context (consistent names, gender, tone)"), 12, y)
+        AddCheck(grp, chkFormat, Loc.Tr("Fix line length && timing – max characters per line:"), 390, y)
         chkFormat.Width = 300
         numLineLen.SetBounds(692, y, 50, 23)
         numLineLen.Minimum = 30 : numLineLen.Maximum = 70
         numLineLen.BackColor = BgControl : numLineLen.ForeColor = Color.White
         grp.Controls.Add(numLineLen)
         y += 28
-        AddCheck(grp, chkAutoUpdate, "Update Subtitle Machine automatically", 12, y)
-        AddCheck(grp, chkStartup, "Check for component updates on startup", 390, y)
+        AddCheck(grp, chkAutoUpdate, Loc.Tr("Update Subtitle Machine automatically"), 12, y)
+        AddCheck(grp, chkStartup, Loc.Tr("Check for component updates on startup"), 390, y)
         y += 28
-        AddCheck(grp, chkKeepSrt, "Keep the .srt files after adding them into the MKV", 12, y)
-        AddCheck(grp, chkNotify, "Notification and sound when a batch is finished", 390, y)
+        AddCheck(grp, chkKeepSrt, Loc.Tr("Keep the .srt files after adding them into the MKV"), 12, y)
+        AddCheck(grp, chkNotify, Loc.Tr("Notification and sound when a batch is finished"), 390, y)
         y += 28
-        AddCheck(grp, chkHearing, "Remove hearing-impaired texts: [music], (laughs), JOHN:, ♪ lyrics ♪", 12, y)
+        AddCheck(grp, chkHearing, Loc.Tr("Remove hearing-impaired texts: [music], (laughs), JOHN:, ♪ lyrics ♪"), 12, y)
         chkHearing.Width = 700
         y += 32
-        AddRow(grp, "Theme:", cmbTheme, y)
+        AddRow(grp, Loc.Tr("Theme:"), cmbTheme, y)
         cmbTheme.Width = 220
-        cmbTheme.Items.Add(New ComboItem("system", "Same as Windows"))
-        cmbTheme.Items.Add(New ComboItem("dark", "Dark"))
-        cmbTheme.Items.Add(New ComboItem("light", "Light"))
-        btnGlossary.Text = "Edit glossary (names && terms)…"
+        cmbTheme.Items.Add(New ComboItem("system", Loc.Tr("Same as Windows")))
+        cmbTheme.Items.Add(New ComboItem("dark", Loc.Tr("Dark")))
+        cmbTheme.Items.Add(New ComboItem("light", Loc.Tr("Light")))
+        btnGlossary.Text = Loc.Tr("Edit glossary (names && terms)…")
         btnGlossary.SetBounds(390, y - 2, 250, 28)
+        y += 32
+        AddRow(grp, Loc.Tr("Interface language:"), cmbUiLang, y)
+        cmbUiLang.Width = 220
+        cmbUiLang.Items.Add(New ComboItem("auto", Loc.Tr("Same as Windows")))
+        cmbUiLang.Items.Add(New ComboItem("en", "English"))
+        cmbUiLang.Items.Add(New ComboItem("el", "Ελληνικά"))
         grp.Controls.Add(btnGlossary)
         AddHandler btnGlossary.Click, Sub()
                                           Using g As New GlossaryForm()
@@ -135,16 +142,16 @@ Public Class ComponentsForm
                                           End Using
                                       End Sub
 
-        StyleButton(btnCheck, "Check for updates", 12, Accent)
-        StyleButton(btnInstall, "Install / update selected", 152, Accent)
+        StyleButton(btnCheck, Loc.Tr("Check for updates"), 12, Accent)
+        StyleButton(btnInstall, Loc.Tr("Install / update selected"), 152, Accent)
         btnInstall.Width = 170
-        StyleButton(btnCancel, "Cancel", 330, Color.FromArgb(217, 83, 79))
+        StyleButton(btnCancel, Loc.Tr("Cancel"), 330, Color.FromArgb(217, 83, 79))
         btnCancel.Enabled = False
-        StyleButton(btnClose, "Close", 638, BgControl)
+        StyleButton(btnClose, Loc.Tr("Close"), 638, BgControl)
 
-        progress.SetBounds(12, 672, 756, 22)
-        lblStatus.SetBounds(12, 700, 756, 34)
-        lblStatus.Text = "Ready"
+        progress.SetBounds(12, 704, 756, 22)
+        lblStatus.SetBounds(12, 732, 756, 34)
+        lblStatus.Text = Loc.Tr("Ready")
 
         Controls.AddRange(New Control() {lblHardware, lv, grp, btnCheck, btnInstall, btnCancel, btnClose, progress, lblStatus})
 
@@ -181,6 +188,7 @@ Public Class ComponentsForm
         AddHandler cmbSize.SelectedIndexChanged, AddressOf OptionsChanged
         AddHandler cmbGpu.SelectedIndexChanged, AddressOf OptionsChanged
         AddHandler cmbTheme.SelectedIndexChanged, AddressOf OptionsChanged
+        AddHandler cmbUiLang.SelectedIndexChanged, AddressOf OptionsChanged
         For Each c In New CheckBox() {chkStartup, chkAutoUpdate, chkVad, chkOcr, chkContext, chkFormat, chkKeepSrt, chkNotify, chkHearing}
             AddHandler c.CheckedChanged, AddressOf OptionsChanged
         Next
@@ -208,7 +216,7 @@ Public Class ComponentsForm
 
     Private Sub StyleButton(b As Button, caption As String, x As Integer, color As Color)
         b.Text = caption
-        b.SetBounds(x, 632, 130, 30)
+        b.SetBounds(x, 664, 130, 30)
         b.FlatStyle = FlatStyle.Flat
         b.BackColor = color
         b.FlatAppearance.BorderColor = color
@@ -254,6 +262,7 @@ Public Class ComponentsForm
         chkNotify.Checked = _settings.NotifyWhenDone
         chkHearing.Checked = _settings.RemoveHearingImpaired
         SelectValue(cmbTheme, _settings.Theme)
+        SelectValue(cmbUiLang, _settings.UiLanguage)
         _loading = False
         RebuildList()
         Await CheckUpdatesAsync()
@@ -261,7 +270,7 @@ Public Class ComponentsForm
             Await InstallSelectedAsync()
             ' First-time setup finished → close by itself and go straight to the main window.
             If Not IsDisposed AndAlso Not _components.Any(Function(c) c.IsRequired() AndAlso Not c.IsInstalled()) Then
-                lblStatus.Text = "All components are installed – ready to go!"
+                lblStatus.Text = Loc.Tr("All components are installed – ready to go!")
                 Await Task.Delay(1500)
                 If Not IsDisposed Then
                     DialogResult = DialogResult.OK
@@ -287,6 +296,16 @@ Public Class ComponentsForm
         _settings.KeepSrtFiles = chkKeepSrt.Checked
         _settings.NotifyWhenDone = chkNotify.Checked
         _settings.RemoveHearingImpaired = chkHearing.Checked
+        Dim newLang = DirectCast(cmbUiLang.SelectedItem, ComboItem).Value
+        If newLang <> _settings.UiLanguage Then
+            _settings.UiLanguage = newLang
+            _settings.Save()
+            Dim previous = Loc.Language
+            Loc.Init(newLang)
+            Dim msg = Loc.Tr("Restart Subtitle Machine to change the interface language.")
+            Loc.Language = previous
+            MessageBox.Show(Me, msg, "Subtitle Machine", MessageBoxButtons.OK, MessageBoxIcon.Information)
+        End If
         Dim newTheme = DirectCast(cmbTheme.SelectedItem, ComboItem).Value
         If newTheme <> _settings.Theme Then
             _settings.Theme = newTheme
@@ -319,17 +338,17 @@ Public Class ComponentsForm
             Dim status As String
             Dim check As Boolean
             If Not c.IsInstalled() Then
-                status = If(c.IsRequired(), "Missing (required)", "Not installed (optional)")
+                status = If(c.IsRequired(), Loc.Tr("Missing (required)"), Loc.Tr("Not installed (optional)"))
                 check = c.IsRequired()
             ElseIf latest IsNot Nothing AndAlso c.NeedsInstallOrUpdate(latest) Then
-                status = "Update available"
+                status = Loc.Tr("Update available")
                 check = True
             ElseIf latest IsNot Nothing Then
-                status = "Up to date"
+                status = Loc.Tr("Up to date")
             Else
-                status = "Installed"
+                status = Loc.Tr("Installed")
             End If
-            If err IsNot Nothing Then status = "Error: " & err
+            If err IsNot Nothing Then status = Loc.Tr("Error: ") & err
 
             Dim latestText = If(latest IsNot Nothing, latest.Version, If(err IsNot Nothing, "—", "?"))
             If latest IsNot Nothing AndAlso latest.TotalSize > 0 Then latestText &= $"  [{WebHelper.FormatBytes(latest.TotalSize)}]"
@@ -338,9 +357,9 @@ Public Class ComponentsForm
             item.SubItems.Add(latestText)
             item.SubItems.Add(status)
             item.ToolTipText = c.Source
-            If status.StartsWith("Missing") OrElse status.StartsWith("Error") Then item.ForeColor = Theme.Current.Err
-            If status = "Update available" Then item.ForeColor = Theme.Current.Warn
-            If status = "Up to date" Then item.ForeColor = Theme.Current.Ok
+            If (Not c.IsInstalled() AndAlso c.IsRequired()) OrElse err IsNot Nothing Then item.ForeColor = Theme.Current.Err
+            If status = Loc.Tr("Update available") Then item.ForeColor = Theme.Current.Warn
+            If status = Loc.Tr("Up to date") Then item.ForeColor = Theme.Current.Ok
             lv.Items.Add(item)
         Next
         lv.ShowItemToolTips = True
@@ -356,7 +375,7 @@ Public Class ComponentsForm
             Dim rv As RemoteVersion = Nothing
             If _latest.TryGetValue(DirectCast(it.Tag, ToolComponent).Id, rv) Then total += rv.TotalSize
         Next
-        If total > 0 Then lblStatus.Text = $"Selected download size: {WebHelper.FormatBytes(total)}"
+        If total > 0 Then lblStatus.Text = Loc.Tr("Selected download size: {0}", WebHelper.FormatBytes(total))
     End Sub
 
     Private Sub SetBusy(busy As Boolean)
@@ -373,7 +392,7 @@ Public Class ComponentsForm
         _cts = New CancellationTokenSource()
         SetBusy(True)
         progress.Style = ProgressBarStyle.Marquee
-        lblStatus.Text = "Checking latest versions…"
+        lblStatus.Text = Loc.Tr("Checking latest versions…")
         Try
             Dim targets = _components.Where(Function(c) Not onlyMissing OrElse Not _latest.ContainsKey(c.Id)).ToList()
             Dim checks = targets.Select(Async Function(c)
@@ -393,7 +412,7 @@ Public Class ComponentsForm
                     _errors(r.Item1) = r.Item3
                 End If
             Next
-            lblStatus.Text = If(_errors.Count = 0, "Version check complete.", "Some checks failed – are you online? (details in the log)")
+            lblStatus.Text = If(_errors.Count = 0, Loc.Tr("Version check complete."), Loc.Tr("Some checks failed – are you online? (details in the log)"))
         Finally
             _cts.Dispose()
             _cts = Nothing
@@ -409,7 +428,7 @@ Public Class ComponentsForm
         If _cts IsNot Nothing Then Return
         Dim selected = lv.Items.Cast(Of ListViewItem)().Where(Function(i) i.Checked).Select(Function(i) DirectCast(i.Tag, ToolComponent)).ToList()
         If selected.Count = 0 Then
-            lblStatus.Text = "Nothing selected."
+            lblStatus.Text = Loc.Tr("Nothing selected.")
             Return
         End If
 
@@ -431,14 +450,14 @@ Public Class ComponentsForm
                 Try
                     Dim latest As RemoteVersion = Nothing
                     If Not _latest.TryGetValue(c.Id, latest) Then
-                        CType(reporter, IProgress(Of StatusUpdate)).Report(New StatusUpdate($"{c.DisplayName}: checking latest version…"))
+                        CType(reporter, IProgress(Of StatusUpdate)).Report(New StatusUpdate(Loc.Tr("{0}: checking latest version…", c.DisplayName)))
                         latest = Await c.GetLatestAsync(_cts.Token)
                         _latest(c.Id) = latest
                     End If
                     Await c.InstallAsync(latest, reporter, _cts.Token)
                     _errors.Remove(c.Id)
                 Catch ex As OperationCanceledException
-                    lblStatus.Text = "Cancelled. Partially downloaded files will resume next time."
+                    lblStatus.Text = Loc.Tr("Cancelled. Partially downloaded files will resume next time.")
                     Exit For
                 Catch ex As Exception
                     Logger.Log($"Install {c.Id} failed: {ex}")
@@ -456,15 +475,15 @@ Public Class ComponentsForm
         progress.Style = ProgressBarStyle.Continuous
         progress.Value = 0
         RebuildList()
-        If Not wasCancelled Then lblStatus.Text = If(failures.Count = 0, "All selected components are installed.", "Finished with errors.")
+        If Not wasCancelled Then lblStatus.Text = If(failures.Count = 0, Loc.Tr("All selected components are installed."), Loc.Tr("Finished with errors."))
         If failures.Count > 0 Then
-            MessageBox.Show(Me, String.Join(vbCrLf & vbCrLf, failures), "Some components failed", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            MessageBox.Show(Me, String.Join(vbCrLf & vbCrLf, failures), Loc.Tr("Some components failed"), MessageBoxButtons.OK, MessageBoxIcon.Warning)
         End If
     End Function
 
     Protected Overrides Sub OnFormClosing(e As FormClosingEventArgs)
         If _cts IsNot Nothing Then
-            If MessageBox.Show(Me, "A download is in progress. Cancel it and close?", "Components", MessageBoxButtons.YesNo, MessageBoxIcon.Question) = DialogResult.No Then
+            If MessageBox.Show(Me, Loc.Tr("A download is in progress. Cancel it and close?"), Loc.Tr("Components"), MessageBoxButtons.YesNo, MessageBoxIcon.Question) = DialogResult.No Then
                 e.Cancel = True
                 Return
             End If
@@ -484,7 +503,7 @@ Public Class GlossaryForm
 
     Public Sub New()
         SuspendLayout()
-        Text = "Glossary – names and terms"
+        Text = Loc.Tr("Glossary – names and terms")
         Font = New Font("Segoe UI", 9.5F)
         ClientSize = New Size(640, 520)
         MinimumSize = New Size(480, 360)
@@ -493,9 +512,9 @@ Public Class GlossaryForm
 
         Dim help As New Label With {
             .Dock = DockStyle.Top, .Height = 70, .Padding = New Padding(10, 8, 10, 0), .Tag = "muted",
-            .Text = "One entry per line:  original = translation   (e.g.  Nick = Νίκος)" & vbCrLf &
-                    "Leave the translation empty to keep a word as it is:  Winterfell =" & vbCrLf &
-                    "Entries under [el], [de]… apply only to that language. The AI is told to use these translations."}
+            .Text = Loc.Tr("One entry per line:  original = translation   (e.g.  Nick = Νίκος)") & vbCrLf &
+                    Loc.Tr("Leave the translation empty to keep a word as it is:  Winterfell =") & vbCrLf &
+                    Loc.Tr("Entries under [el], [de]… apply only to that language. The AI is told to use these translations.")}
         txt.Multiline = True
         txt.ScrollBars = ScrollBars.Both
         txt.WordWrap = False
@@ -505,9 +524,9 @@ Public Class GlossaryForm
         txt.Text = If(IO.File.Exists(Glossary.FilePath), IO.File.ReadAllText(Glossary.FilePath, System.Text.Encoding.UTF8), Glossary.Template)
 
         Dim bottom As New Panel With {.Dock = DockStyle.Bottom, .Width = ClientSize.Width, .Height = 52, .Tag = "panel"}
-        Dim btnSave As New Button With {.Text = "Save", .Tag = "accent", .Anchor = AnchorStyles.Right Or AnchorStyles.Top}
+        Dim btnSave As New Button With {.Text = Loc.Tr("Save"), .Tag = "accent", .Anchor = AnchorStyles.Right Or AnchorStyles.Top}
         btnSave.SetBounds(ClientSize.Width - 222, 10, 100, 32)
-        Dim btnCancel As New Button With {.Text = "Cancel", .DialogResult = DialogResult.Cancel, .Anchor = AnchorStyles.Right Or AnchorStyles.Top}
+        Dim btnCancel As New Button With {.Text = Loc.Tr("Cancel"), .DialogResult = DialogResult.Cancel, .Anchor = AnchorStyles.Right Or AnchorStyles.Top}
         btnCancel.SetBounds(ClientSize.Width - 114, 10, 100, 32)
         bottom.Controls.AddRange(New Control() {btnSave, btnCancel})
         CancelButton = btnCancel

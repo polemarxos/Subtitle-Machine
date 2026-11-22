@@ -22,9 +22,9 @@ Public Class DownloadProgress
     Public Overrides Function ToString() As String
         Dim speed = If(BytesPerSecond > 0, $" – {FormatBytes(CLng(BytesPerSecond))}/s", "")
         If TotalBytes > 0 Then
-            Return $"Downloading {FileName}: {FormatBytes(BytesReceived)} / {FormatBytes(TotalBytes)} ({Percent}%){speed}"
+            Return Loc.Tr("Downloading {0}: {1} / {2} ({3}%){4}", FileName, FormatBytes(BytesReceived), FormatBytes(TotalBytes), Percent, speed)
         End If
-        Return $"Downloading {FileName}: {FormatBytes(BytesReceived)}{speed}"
+        Return Loc.Tr("Downloading {0}: {1}{2}", FileName, FormatBytes(BytesReceived), speed)
     End Function
 End Class
 

@@ -40,7 +40,7 @@ Public Class SubtitleEditorForm
 
     Private Sub BuildUi()
         SuspendLayout()
-        Text = "Subtitle editor – " & Path.GetFileName(_item.FilePath)
+        Text = Loc.Tr("Subtitle editor") & " – " & Path.GetFileName(_item.FilePath)
         Font = New Font("Segoe UI", 9.5F)
         ClientSize = New Size(1000, 640)
         MinimumSize = New Size(760, 420)
@@ -48,22 +48,22 @@ Public Class SubtitleEditorForm
         KeyPreview = True
 
         Dim top As New Panel With {.Dock = DockStyle.Top, .Width = ClientSize.Width, .Height = 48, .Tag = "panel", .Padding = New Padding(10, 10, 10, 6)}
-        Dim lblFile As New Label With {.Text = "Translation:", .AutoSize = True, .Location = New Point(12, 16)}
+        Dim lblFile As New Label With {.Text = Loc.Tr("Translation:"), .AutoSize = True, .Location = New Point(12, 16)}
         cmbFile.SetBounds(100, 12, 330, 25)
         cmbFile.DropDownStyle = ComboBoxStyle.DropDownList
         cmbFile.FlatStyle = FlatStyle.Flat
         For Each f In _files : cmbFile.Items.Add(Path.GetFileName(f)) : Next
         txtFind.SetBounds(460, 13, 240, 25)
-        txtFind.PlaceholderText = "Find text…"
-        btnFind.SetBounds(706, 11, 90, 28) : btnFind.Text = "Find next"
+        txtFind.PlaceholderText = Loc.Tr("Find text…")
+        btnFind.SetBounds(706, 11, 90, 28) : btnFind.Text = Loc.Tr("Find next")
         top.Controls.AddRange(New Control() {lblFile, cmbFile, txtFind, btnFind})
 
         Dim bottom As New Panel With {.Dock = DockStyle.Bottom, .Width = ClientSize.Width, .Height = 54, .Tag = "panel"}
-        btnRetranslate.Text = "Re-translate selected" : btnRetranslate.SetBounds(12, 12, 170, 32)
+        btnRetranslate.Text = Loc.Tr("Re-translate selected") : btnRetranslate.SetBounds(12, 12, 170, 32)
         lblStatus.SetBounds(194, 18, 480, 22) : lblStatus.Tag = "muted" : lblStatus.AutoEllipsis = True
         lblStatus.Anchor = AnchorStyles.Left Or AnchorStyles.Right Or AnchorStyles.Top
-        btnSave.Text = "Save" : btnSave.Tag = "accent" : btnSave.SetBounds(780, 12, 100, 32) : btnSave.Anchor = AnchorStyles.Right Or AnchorStyles.Top
-        btnClose.Text = "Close" : btnClose.SetBounds(888, 12, 100, 32) : btnClose.Anchor = AnchorStyles.Right Or AnchorStyles.Top
+        btnSave.Text = Loc.Tr("Save") : btnSave.Tag = "accent" : btnSave.SetBounds(780, 12, 100, 32) : btnSave.Anchor = AnchorStyles.Right Or AnchorStyles.Top
+        btnClose.Text = Loc.Tr("Close") : btnClose.SetBounds(888, 12, 100, 32) : btnClose.Anchor = AnchorStyles.Right Or AnchorStyles.Top
         bottom.Controls.AddRange(New Control() {btnRetranslate, lblStatus, btnSave, btnClose})
 
         grid.Dock = DockStyle.Fill
@@ -77,7 +77,7 @@ Public Class SubtitleEditorForm
         grid.Columns.Add(New DataGridViewTextBoxColumn With {.Name = "Start", .HeaderText = "Start", .Width = 105})
         grid.Columns.Add(New DataGridViewTextBoxColumn With {.Name = "End", .HeaderText = "End", .Width = 105})
         grid.Columns.Add(New DataGridViewTextBoxColumn With {.Name = "Original", .HeaderText = "Original", .ReadOnly = True, .AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill})
-        grid.Columns.Add(New DataGridViewTextBoxColumn With {.Name = "Translation", .HeaderText = "Translation (editable)", .AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill})
+        grid.Columns.Add(New DataGridViewTextBoxColumn With {.Name = "Translation", .HeaderText = Loc.Tr("Translation (editable)"), .AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill})
 
         Controls.Add(grid)
         Controls.Add(bottom)
@@ -119,7 +119,7 @@ Public Class SubtitleEditorForm
     End Sub
 
     Private Sub UpdateTitle()
-        Text = $"Subtitle editor – {Path.GetFileName(_current)}{If(_dirty, " *", "")}"
+        Text = Loc.Tr("Subtitle editor") & $" – {Path.GetFileName(_current)}{If(_dirty, " *", "")}"
     End Sub
 
     ''' <summary>Original text shown next to a translated line = source lines overlapping its time.</summary>
@@ -145,11 +145,11 @@ Public Class SubtitleEditorForm
         _loading = False
         _dirty = False
         UpdateTitle()
-        lblStatus.Text = $"{n} lines. Edit text or times directly; Ctrl+S saves."
+        lblStatus.Text = Loc.Tr("{0} lines. Edit text or times directly; Ctrl+S saves.", n)
     End Sub
 
     Private Function ConfirmDiscard() As Boolean
-        Select Case MessageBox.Show(Me, "Save changes to " & Path.GetFileName(_current) & "?", "Subtitle editor", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question)
+        Select Case MessageBox.Show(Me, Loc.Tr("Save changes to ") & Path.GetFileName(_current) & "?", Loc.Tr("Subtitle editor"), MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question)
             Case DialogResult.Yes : Return SaveCurrent()
             Case DialogResult.No : Return True
             Case Else : Return False
@@ -166,7 +166,7 @@ Public Class SubtitleEditorForm
                 grid.ClearSelection()
                 r.Selected = True
                 grid.FirstDisplayedScrollingRowIndex = r.Index
-                MessageBox.Show(Me, $"Line {r.Cells("No").Value}: the times must look like 00:01:02,500 and End must be after Start.", "Subtitle editor", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                MessageBox.Show(Me, Loc.Tr("Line {0}: the times must look like 00:01:02,500 and End must be after Start.", r.Cells("No").Value), Loc.Tr("Subtitle editor"), MessageBoxButtons.OK, MessageBoxIcon.Warning)
                 Return False
             End If
             cues.Add(New SrtCue With {.Timing = SubtitleFormatter.FormatTiming(s, en), .Text = CStr(If(r.Cells("Translation").Value, "")).Replace(vbCrLf, vbLf).Trim()})
@@ -174,7 +174,7 @@ Public Class SubtitleEditorForm
         SrtFile.Save(_current, cues)
         _dirty = False
         UpdateTitle()
-        lblStatus.Text = $"Saved {Path.GetFileName(_current)}."
+        lblStatus.Text = Loc.Tr("Saved {0}.", Path.GetFileName(_current))
         Return True
     End Function
 
@@ -189,11 +189,11 @@ Public Class SubtitleEditorForm
                 grid.CurrentCell = r.Cells("Translation")
                 grid.ClearSelection()
                 r.Selected = True
-                lblStatus.Text = $"Found on line {r.Cells("No").Value}."
+                lblStatus.Text = Loc.Tr("Found on line {0}.", r.Cells("No").Value)
                 Return
             End If
         Next
-        lblStatus.Text = $"""{q}"" not found."
+        lblStatus.Text = Loc.Tr("""{0}"" not found.", q)
     End Sub
 
     Private Function TargetOfCurrent() As LanguageInfo
@@ -204,7 +204,7 @@ Public Class SubtitleEditorForm
         Dim rows = grid.SelectedRows.Cast(Of DataGridViewRow)().OrderBy(Function(r) r.Index).ToList()
         If rows.Count = 0 OrElse _cts IsNot Nothing Then Return
         If rows.All(Function(r) String.IsNullOrWhiteSpace(CStr(r.Cells("Original").Value))) Then
-            lblStatus.Text = "The selected lines have no original text to translate."
+            lblStatus.Text = Loc.Tr("The selected lines have no original text to translate.")
             Return
         End If
         _cts = New CancellationTokenSource()
@@ -220,17 +220,17 @@ Public Class SubtitleEditorForm
                 Dim original = CStr(If(r.Cells("Original").Value, "")).Replace(vbCrLf, vbLf).Trim()
                 If original.Length = 0 Then Continue For
                 n += 1
-                lblStatus.Text = $"Translating line {r.Cells("No").Value} ({n}/{rows.Count})…"
+                lblStatus.Text = Loc.Tr("Translating line {0} ({1}/{2})…", r.Cells("No").Value, n, rows.Count)
                 Dim raw = Await _translator.TranslateAsync(original, sourceLang, target, _cts.Token, gl.ForText(original, target))
                 r.Cells("Translation").Value = TranslationPrompt.Clean(raw, original).Replace(vbLf, vbCrLf)
             Next
-            lblStatus.Text = $"Re-translated {n} line(s) – remember to save."
+            lblStatus.Text = Loc.Tr("Re-translated {0} line(s) – remember to save.", n)
         Catch ex As OperationCanceledException
-            lblStatus.Text = "Cancelled."
+            lblStatus.Text = Loc.Tr("Cancelled.")
         Catch ex As Exception
             Logger.Log("Editor re-translate failed: " & ex.ToString())
-            MessageBox.Show(Me, ex.Message, "Re-translate", MessageBoxButtons.OK, MessageBoxIcon.Warning)
-            lblStatus.Text = "Re-translate failed."
+            MessageBox.Show(Me, ex.Message, Loc.Tr("Re-translate"), MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            lblStatus.Text = Loc.Tr("Re-translate failed.")
         Finally
             _cts.Dispose()
             _cts = Nothing

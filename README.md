@@ -28,6 +28,8 @@ Everything it needs is **downloaded automatically from the official sources** an
 - **Subtitle editor:** double-click a finished file to review original and translation side by side, fix text or times, re-translate selected lines and save
 - **Compare subtitles:** two files side by side, matched by time, with changed words marked, timing differences in orange, and lines that exist in only one file in red/green; *Show only differences* and *Next difference* (F3)
 - **When finished:** do nothing, sleep, hibernate or shut down (with a 60-second countdown you can cancel)
+- **Hearing-impaired cleanup:** removes [MUSIC], (laughs), speaker names like `JOHN:` and ♪ song lyrics ♪ before translating (optional)
+- **Greek or English interface**, chosen automatically from Windows or in *Components & settings*
 - **Light, dark or Windows theme**, and a Windows notification with sound when a batch is done
 
 ## Download
@@ -92,6 +94,8 @@ Stored next to the exe (or in `%LocalAppData%\Subtitle Machine` if that folder i
 | `NotifyWhenDone` | `true` | Notification and sound when a batch is finished |
 | `ReplaceOriginal` | `true` | Write the translation into the original subtitle file (one target language only) |
 | `OverwriteExisting` | `false` | *Redo files that are already finished.* Off: files made in an earlier run (e.g. `Movie.el.srt`) are kept and skipped. On: everything is made again and the old files are replaced – useful after changing the model or glossary |
+| `RemoveHearingImpaired` | `false` | Remove [music], (laughs), JOHN:, ♪ lyrics ♪ before translating |
+| `UiLanguage` | `auto` | Interface language: `auto` (like Windows), `en`, `el` |
 | `AutoUpdateApp` | `true` | Update the app automatically from GitHub |
 | `CheckComponentUpdates` | `true` | Check component updates on startup |
 

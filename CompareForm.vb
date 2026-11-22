@@ -25,7 +25,7 @@ Public Class CompareForm
 
     Public Sub New(Optional fileA As String = Nothing, Optional fileB As String = Nothing)
         SuspendLayout()
-        Text = "Compare subtitles"
+        Text = Loc.Tr("Compare subtitles")
         Font = New Font("Segoe UI", 9.5F)
         ClientSize = New Size(1100, 680)
         MinimumSize = New Size(800, 450)
@@ -34,23 +34,23 @@ Public Class CompareForm
         KeyPreview = True
 
         Dim top As New Panel With {.Dock = DockStyle.Top, .Width = ClientSize.Width, .Height = 112, .Tag = "panel"}
-        AddFileRow(top, "File A:", txtA, btnBrowseA, 12)
-        AddFileRow(top, "File B:", txtB, btnBrowseB, 44)
-        btnSwap.Text = "⇅ Swap" : btnSwap.SetBounds(780, 26, 80, 28) : btnSwap.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        btnCompare.Text = "Compare" : btnCompare.Tag = "accent" : btnCompare.SetBounds(870, 26, 110, 28) : btnCompare.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        chkOnlyDiff.Text = "Show only differences" : chkOnlyDiff.SetBounds(70, 80, 180, 24)
-        Dim lblTol As New Label With {.Text = "Ignore timing differences up to", .AutoSize = True, .Location = New Point(262, 83)}
+        AddFileRow(top, Loc.Tr("File A:"), txtA, btnBrowseA, 12)
+        AddFileRow(top, Loc.Tr("File B:"), txtB, btnBrowseB, 44)
+        btnSwap.Text = Loc.Tr("⇅ Swap") : btnSwap.SetBounds(780, 26, 80, 28) : btnSwap.Anchor = AnchorStyles.Top Or AnchorStyles.Right
+        btnCompare.Text = Loc.Tr("Compare") : btnCompare.Tag = "accent" : btnCompare.SetBounds(870, 26, 110, 28) : btnCompare.Anchor = AnchorStyles.Top Or AnchorStyles.Right
+        chkOnlyDiff.Text = Loc.Tr("Show only differences") : chkOnlyDiff.SetBounds(70, 80, 180, 24)
+        Dim lblTol As New Label With {.Text = Loc.Tr("Ignore timing differences up to"), .AutoSize = True, .Location = New Point(262, 83)}
         numTolerance.SetBounds(460, 80, 70, 25) : numTolerance.Minimum = 0 : numTolerance.Maximum = 5000 : numTolerance.Increment = 50 : numTolerance.Value = 100
         Dim lblMs As New Label With {.Text = "ms", .AutoSize = True, .Location = New Point(535, 83)}
-        btnPrev.Text = "▲ Previous difference" : btnPrev.SetBounds(700, 78, 160, 28) : btnPrev.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        btnNext.Text = "▼ Next difference" : btnNext.SetBounds(866, 78, 150, 28) : btnNext.Anchor = AnchorStyles.Top Or AnchorStyles.Right
+        btnPrev.Text = Loc.Tr("▲ Previous difference") : btnPrev.SetBounds(700, 78, 160, 28) : btnPrev.Anchor = AnchorStyles.Top Or AnchorStyles.Right
+        btnNext.Text = Loc.Tr("▼ Next difference") : btnNext.SetBounds(866, 78, 150, 28) : btnNext.Anchor = AnchorStyles.Top Or AnchorStyles.Right
         top.Controls.AddRange(New Control() {btnSwap, btnCompare, chkOnlyDiff, lblTol, numTolerance, lblMs, btnPrev, btnNext})
 
         Dim bottom As New Panel With {.Dock = DockStyle.Bottom, .Width = ClientSize.Width, .Height = 52, .Tag = "panel"}
         lblSummary.SetBounds(12, 6, 1070, 20) : lblSummary.Anchor = AnchorStyles.Left Or AnchorStyles.Right Or AnchorStyles.Top
-        lblSummary.Text = "Choose two subtitle files (or drop them here) and press Compare."
+        lblSummary.Text = Loc.Tr("Choose two subtitle files (or drop them here) and press Compare.")
         lblLegend.SetBounds(12, 28, 1070, 20) : lblLegend.Tag = "muted" : lblLegend.Anchor = AnchorStyles.Left Or AnchorStyles.Right Or AnchorStyles.Top
-        lblLegend.Text = "Marked words = changed.  Yellow row = text changed · orange time = timing changed · red row = only in A · green row = only in B."
+        lblLegend.Text = Loc.Tr("Marked words = changed.  Yellow row = text changed · orange time = timing changed · red row = only in A · green row = only in B.")
         bottom.Controls.AddRange(New Control() {lblSummary, lblLegend})
 
         grid.Dock = DockStyle.Fill
@@ -61,10 +61,10 @@ Public Class CompareForm
         grid.RowHeadersVisible = False
         grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect
         grid.Columns.Add(New DataGridViewTextBoxColumn With {.Name = "No", .HeaderText = "#", .Width = 50})
-        grid.Columns.Add(New DataGridViewTextBoxColumn With {.Name = "TimeA", .HeaderText = "Time A", .Width = 115})
-        grid.Columns.Add(New DataGridViewTextBoxColumn With {.Name = "TextA", .HeaderText = "Text A", .AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill})
-        grid.Columns.Add(New DataGridViewTextBoxColumn With {.Name = "TimeB", .HeaderText = "Time B", .Width = 115})
-        grid.Columns.Add(New DataGridViewTextBoxColumn With {.Name = "TextB", .HeaderText = "Text B", .AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill})
+        grid.Columns.Add(New DataGridViewTextBoxColumn With {.Name = "TimeA", .HeaderText = Loc.Tr("Time A"), .Width = 115})
+        grid.Columns.Add(New DataGridViewTextBoxColumn With {.Name = "TextA", .HeaderText = Loc.Tr("Text A"), .AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill})
+        grid.Columns.Add(New DataGridViewTextBoxColumn With {.Name = "TimeB", .HeaderText = Loc.Tr("Time B"), .Width = 115})
+        grid.Columns.Add(New DataGridViewTextBoxColumn With {.Name = "TextB", .HeaderText = Loc.Tr("Text B"), .AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill})
         grid.RowTemplate.Height = 26
 
         Controls.Add(grid)
@@ -113,7 +113,7 @@ Public Class CompareForm
                                      Dim files = TryCast(e.Data.GetData(DataFormats.FileDrop), String())
                                      If files IsNot Nothing AndAlso files.Length > 0 Then box.Text = files(0)
                                  End Sub
-        browse.Text = "Browse…"
+        browse.Text = Loc.Tr("Browse…")
         browse.SetBounds(676, y - 1, 90, 27)
         browse.Anchor = AnchorStyles.Top Or AnchorStyles.Right
         parent.Controls.AddRange(New Control() {l, box, browse})
@@ -131,7 +131,7 @@ Public Class CompareForm
     End Sub
 
     Private Sub Browse(box As TextBox)
-        Using ofd As New OpenFileDialog With {.Filter = "Subtitles (*.srt)|*.srt|All files|*.*"}
+        Using ofd As New OpenFileDialog With {.Filter = Loc.Tr("Subtitles") & " (*.srt)|*.srt|" & Loc.Tr("All files") & "|*.*"}
             If File.Exists(box.Text) Then ofd.InitialDirectory = Path.GetDirectoryName(box.Text)
             If ofd.ShowDialog(Me) = DialogResult.OK Then box.Text = ofd.FileName
         End Using
@@ -156,16 +156,16 @@ Public Class CompareForm
 
     Private Sub RunCompare()
         If Not File.Exists(txtA.Text) OrElse Not File.Exists(txtB.Text) Then
-            lblSummary.Text = "Choose two existing subtitle files."
+            lblSummary.Text = Loc.Tr("Choose two existing subtitle files.")
             Return
         End If
         Try
             _rows = SubtitleCompare.Compare(SrtFile.Load(txtA.Text), SrtFile.Load(txtB.Text), TimeSpan.FromMilliseconds(CDbl(numTolerance.Value)))
-            Text = $"Compare – {Path.GetFileName(txtA.Text)}  ↔  {Path.GetFileName(txtB.Text)}"
+            Text = Loc.Tr("Compare – {0}  ↔  {1}", Path.GetFileName(txtA.Text), Path.GetFileName(txtB.Text))
             lblSummary.Text = SubtitleCompare.Summary(_rows)
             FillGrid()
         Catch ex As Exception
-            lblSummary.Text = "Could not compare: " & ex.Message
+            lblSummary.Text = Loc.Tr("Could not compare: ") & ex.Message
         End Try
     End Sub
 
@@ -198,7 +198,7 @@ Public Class CompareForm
                 Return
             End If
         Next
-        lblSummary.Text = SubtitleCompare.Summary(_rows) & If(direction > 0, "  –  no more differences below.", "  –  no more differences above.")
+        lblSummary.Text = SubtitleCompare.Summary(_rows) & If(direction > 0, Loc.Tr("  –  no more differences below."), Loc.Tr("  –  no more differences above."))
     End Sub
 
     ' ----- drawing: tinted rows, marked words -----

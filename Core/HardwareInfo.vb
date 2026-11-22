@@ -23,7 +23,7 @@ Public Module HardwareInfo
         End Property
 
         Public Overrides Function ToString() As String
-            If Vendor = GpuVendor.None Then Return Name
+            If Vendor = GpuVendor.None Then Return Loc.Tr(Name)
             Return $"{Name} ({VramGB:0.#} GB VRAM)"
         End Function
     End Class

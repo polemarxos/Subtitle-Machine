@@ -300,7 +300,7 @@ Public Class WhisperModelComponent
         ("large-v3-turbo", Loc.Tr("Large v3 Turbo – best speed/quality (1.6 GB) – recommended")),
         ("large-v3-turbo-q5_0", Loc.Tr("Large v3 Turbo Q5 – smaller, almost same quality (0.6 GB)")),
         ("large-v3", Loc.Tr("Large v3 – best quality, slow (3.1 GB)")),
-        ("medium", "Medium (1.5 GB)"),
+        ("medium", Loc.Tr("Medium (1.5 GB)")),
         ("small", Loc.Tr("Small – fast, for weak PCs (0.5 GB)")),
         ("base", Loc.Tr("Base – very fast, low quality (0.15 GB)"))
     }
@@ -316,7 +316,7 @@ Public Class WhisperModelComponent
     Public Overrides ReadOnly Property Id As String = "whisper-model"
     Public Overrides ReadOnly Property DisplayName As String
         Get
-            Return $"Whisper model ({Settings.WhisperModel})"
+            Return Loc.Tr("Whisper model ({0})", Settings.WhisperModel)
         End Get
     End Property
     Public Overrides ReadOnly Property Source As String = "huggingface.co/ggerganov/whisper.cpp"
@@ -466,7 +466,7 @@ Public Class TranslateModelComponent
     End Property
     Public Overrides ReadOnly Property DisplayName As String
         Get
-            Return $"TranslateGemma {Size.ToUpperInvariant()} (AI translation model)"
+            Return Loc.Tr("TranslateGemma {0} (AI translation model)", Size.ToUpperInvariant())
         End Get
     End Property
     Public Overrides ReadOnly Property Source As String = "huggingface.co (GGUF of google/translategemma)"
@@ -504,7 +504,7 @@ Public Class TranslateModelComponent
             rv.Files.Add(New RemoteFile With {.Url = WebHelper.HuggingFaceUrl(repo, hit.Name), .FileName = Path.GetFileName(hit.Name), .Size = hit.Size, .Sha256 = hit.Sha256})
             Return rv
         Next
-        Throw New Exception($"Could not find TranslateGemma {Size} on Hugging Face.")
+        Throw New Exception(Loc.Tr("Could not find TranslateGemma {0} on Hugging Face.", Size))
     End Function
 
     Protected Overrides Function InstallFilesAsync(latest As RemoteVersion, downloaded As List(Of String), ct As CancellationToken) As Task

@@ -459,3 +459,52 @@ Public Class CleanerTests
         Assert.Equal("Hello.", r(0).Text)
     End Sub
 End Class
+
+Public Class LocalizationTests
+    Private Shared Function RepoRoot() As String
+        Dim d = New DirectoryInfo(AppContext.BaseDirectory)
+        While d IsNot Nothing AndAlso Not File.Exists(Path.Combine(d.FullName, "Subtitle Machine.vbproj"))
+            d = d.Parent
+        End While
+        Return d?.FullName
+    End Function
+
+    ''' <summary>Every text passed to Loc.Tr (and every designer caption) must have a Greek translation.</summary>
+    <Fact>
+    Public Sub EveryInterfaceText_HasAGreekTranslation()
+        Dim root = RepoRoot()
+        Assert.NotNull(root)
+        Dim missing As New List(Of String)
+        Dim lit = """((?:[^""]|"""")*)"""
+        For Each f In Directory.EnumerateFiles(root, "*.vb", SearchOption.AllDirectories)
+            If f.Contains(Path.DirectorySeparatorChar & "tests" & Path.DirectorySeparatorChar) OrElse f.Contains(Path.DirectorySeparatorChar & "obj" & Path.DirectorySeparatorChar) Then Continue For
+            Dim src = File.ReadAllText(f)
+            Dim patterns = New List(Of String) From {"Loc\.Tr\(" & lit}
+            If f.EndsWith(".Designer.vb") Then patterns.Add("\.(?:Text|HeaderText) = " & lit)
+            For Each p In patterns
+                For Each m As Text.RegularExpressions.Match In Text.RegularExpressions.Regex.Matches(src, p)
+                    Dim key = m.Groups(1).Value.Replace("""""", """")
+                    If Not Text.RegularExpressions.Regex.IsMatch(key, "[A-Za-z]{2,}") Then Continue For
+                    If Not Loc.HasTranslation(key) Then missing.Add($"{Path.GetFileName(f)}: {key}")
+                Next
+            Next
+        Next
+        Assert.True(missing.Count = 0, "Missing Greek texts:" & vbLf & String.Join(vbLf, missing.Distinct()))
+    End Sub
+
+    <Fact>
+    Public Sub Tr_FormatsInGreekAndFallsBackToEnglish()
+        Dim previous = Loc.Language
+        Try
+            Loc.Language = "el"
+            Assert.Equal("Προστέθηκαν 3 αρχεία – 5 στη λίστα.", Loc.Tr("{0} file(s) added – {1} in the list.", 3, 5))
+            Assert.Equal("Something new", Loc.Tr("Something new"))
+            Assert.Equal("Ελληνικά", Languages.Find("el").DisplayName)
+            Assert.Equal("Greek", Languages.Find("el").Name)          ' the AI prompt keeps English names
+            Loc.Language = "en"
+            Assert.Equal("3 file(s) added – 5 in the list.", Loc.Tr("{0} file(s) added – {1} in the list.", 3, 5))
+        Finally
+            Loc.Language = previous
+        End Try
+    End Sub
+End Class

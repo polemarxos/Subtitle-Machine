@@ -143,7 +143,8 @@ Public Module SubtitleCompare
 
     Public Function Summary(rows As List(Of DiffRow)) As String
         Dim c = Function(k As DiffKind) rows.Where(Function(r) r.Kind = k).Count()
-        Return $"{rows.Count} lines: {c(DiffKind.Same)} same, {c(DiffKind.TextChanged) + c(DiffKind.TextAndTiming)} text changed, " &
-               $"{c(DiffKind.TimingChanged) + c(DiffKind.TextAndTiming)} timing changed, {c(DiffKind.OnlyInA)} only in A, {c(DiffKind.OnlyInB)} only in B"
+        Return Loc.Tr("{0} lines: {1} same, {2} text changed, {3} timing changed, {4} only in A, {5} only in B",
+                      rows.Count, c(DiffKind.Same), c(DiffKind.TextChanged) + c(DiffKind.TextAndTiming),
+                      c(DiffKind.TimingChanged) + c(DiffKind.TextAndTiming), c(DiffKind.OnlyInA), c(DiffKind.OnlyInB))
     End Function
 End Module
