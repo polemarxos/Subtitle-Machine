@@ -729,8 +729,9 @@ Public Class LoggerTests
             Logger.Log("must not be written")
             Assert.Equal(before, If(File.Exists(AppPaths.LogFile), New FileInfo(AppPaths.LogFile).Length, 0L))
         Finally
-            Logger.Enabled = True
+            Logger.Enabled = False
         End Try
-        Assert.True(New AppSettings().WriteLog)
+        Assert.False(New AppSettings().WriteLog)
+        Assert.False(New AppSettings().AutoSyncSubtitles)
     End Sub
 End Class

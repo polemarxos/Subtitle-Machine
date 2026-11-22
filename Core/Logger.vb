@@ -10,7 +10,7 @@ Public Module Logger
     Private ReadOnly _lock As New Object()
     Public Property DebugConsole As Boolean = False
     ''' <summary>Write the log file (setting "Write a log file").</summary>
-    Public Property Enabled As Boolean = True
+    Public Property Enabled As Boolean = False
     Private Const MaxLogBytes As Long = 5L * 1024 * 1024
 
     Public Sub Log(message As String)

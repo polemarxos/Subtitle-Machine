@@ -33,20 +33,20 @@ Public Class AppSettings
     ''' <summary>Remove texts for the hearing impaired: [MUSIC], (laughs), JOHN:, ♪ lyrics ♪.</summary>
     Public Property RemoveHearingImpaired As Boolean = True
     ''' <summary>Match the timing of subtitle files to the speech of the video next to them.</summary>
-    Public Property AutoSyncSubtitles As Boolean = True
+    Public Property AutoSyncSubtitles As Boolean = False
     ''' <summary>"translate" (default) or "sync" (only match the subtitle timing to the video).</summary>
     Public Property JobMode As String = "translate"
     ''' <summary>Mark spelling mistakes in the subtitle editor.</summary>
     Public Property SpellCheck As Boolean = True
     ''' <summary>Write subtitle_machine.log (max ~10 MB: 5 MB + one old file).</summary>
-    Public Property WriteLog As Boolean = True
+    Public Property WriteLog As Boolean = False
     Public Property FixFormatting As Boolean = True
     Public Property MaxLineLength As Integer = 42
 
     ''' <summary>Write the translation into the original subtitle file instead of creating "Movie.el.srt".</summary>
     Public Property ReplaceOriginal As Boolean = True
     ''' <summary>Settings format version (used to apply new defaults once).</summary>
-    Public Property ConfigVersion As Integer = 3
+    Public Property ConfigVersion As Integer = 4
     ''' <summary>Re-create output files that already exist.</summary>
     Public Property OverwriteExisting As Boolean = False
 
@@ -85,6 +85,12 @@ Public Class AppSettings
         If s.ConfigVersion < 3 Then
             s.RemoveHearingImpaired = True ' 1.5.1: removing hearing-impaired texts is on by default
             s.ConfigVersion = 3
+        End If
+        If s.ConfigVersion < 4 Then
+            ' 1.8.3: auto-sync and the log file are off by default
+            s.AutoSyncSubtitles = False
+            s.WriteLog = False
+            s.ConfigVersion = 4
         End If
         s.Normalize()
         Logger.Enabled = s.WriteLog
