@@ -504,7 +504,7 @@ Public Class SubtitleEditorForm
             If _speech Is Nothing OrElse Not String.Equals(_speechMedia, media, StringComparison.OrdinalIgnoreCase) Then
                 lblStatus.Text = Loc.Tr("Listening to the audio of {0}…", Path.GetFileName(media))
                 Dim duration = Await SubtitlePipeline.ProbeDurationAsync(media, _cts.Token)
-                _speech = Await SubtitleSync.DetectSpeechAsync(FfmpegComponent.FfmpegExe, media, 0, _cts.Token,
+                _speech = Await SubtitleSync.DetectSpeechBestAsync(FfmpegComponent.FfmpegExe, media, 0, _cts.Token,
                                                               Sub(f) BeginInvoke(Sub() lblStatus.Text = Loc.Tr("Listening to the audio of {0}…", Path.GetFileName(media)) & $" {f:P0}"), duration)
                 _speechMedia = media
             End If
@@ -513,11 +513,14 @@ Public Class SubtitleEditorForm
             If result.ShouldApply Then
                 If MessageBox.Show(Me, Loc.Tr("The subtitles match the speech best when moved by {0}.", result.Describe()) & vbCrLf & vbCrLf & Loc.Tr("Change the times of all lines?"),
                                    Loc.Tr("Sync to video"), MessageBoxButtons.YesNo, MessageBoxIcon.Question) = DialogResult.Yes Then
+                    Dim matched As New HashSet(Of DataGridViewRow)(rows)
+                    Dim line = -1
                     For Each r As DataGridViewRow In grid.Rows
+                        If matched.Contains(r) Then line += 1 ' rows used for matching, in order
                         Dim s As TimeSpan, en As TimeSpan
                         If SubtitleFormatter.TryParseTiming($"{r.Cells("Start").Value} --> {r.Cells("End").Value}", s, en) Then
-                            r.Cells("Start").Value = SubtitleFormatter.Fmt(SubtitleSync.Shift(s, result))
-                            r.Cells("End").Value = SubtitleFormatter.Fmt(SubtitleSync.Shift(en, result))
+                            r.Cells("Start").Value = SubtitleFormatter.Fmt(SubtitleSync.Shift(s, result, Math.Max(0, line)))
+                            r.Cells("End").Value = SubtitleFormatter.Fmt(SubtitleSync.Shift(en, result, Math.Max(0, line)))
                         End If
                     Next
                     lblStatus.Text = Loc.Tr("Timing changed by {0} – remember to save.", result.Describe())

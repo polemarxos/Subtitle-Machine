@@ -252,6 +252,11 @@ Public Class WhisperEngineComponent
                   FindFile(Path.Combine(AppPaths.ToolsDir, "whisper"), "whisper-cli.exe", "whisper.exe"))
     End Function
 
+    ''' <summary>Speech detection tool of whisper.cpp (used by auto-sync); part of the official Windows builds.</summary>
+    Public Shared Function FindVadExe() As String
+        Return FindFile(Dir, "whisper-vad-speech-segments.exe")
+    End Function
+
     Public Overrides ReadOnly Property Id As String = "whisper"
     Public Overrides ReadOnly Property DisplayName As String = Loc.Tr("whisper.cpp (speech-to-text engine)")
     Public Overrides ReadOnly Property Source As String = "github.com/ggml-org/whisper.cpp"
@@ -533,7 +538,7 @@ Public Class WhisperVadComponent
     Public Overrides ReadOnly Property Source As String = "huggingface.co/ggml-org/whisper-vad"
 
     Public Overrides Function IsRequired() As Boolean
-        Return Settings.UseVad
+        Return True ' under 1 MB; used by Whisper (voice detection) and by auto-sync
     End Function
 
     Public Overrides Function IsInstalled() As Boolean

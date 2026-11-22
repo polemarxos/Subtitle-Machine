@@ -661,3 +661,61 @@ Public Class SpellCheckerTests
         Assert.True(SpellChecker.IsSupported(Languages.Find("en")))
     End Sub
 End Class
+
+Public Class SyncPartsTests
+    Private Shared Function MakeTalk(seed As Integer, ByRef cues As List(Of (Start As Double, [End] As Double))) As Byte()
+        Dim rnd As New Random(seed)
+        Dim frames = 20 * 60 * 100
+        Dim speech(frames - 1) As Byte
+        cues = New List(Of (Start As Double, [End] As Double))
+        Dim t = 2.0
+        While t < frames / 100.0 - 10
+            Dim d = 0.8 + rnd.NextDouble() * 3.5
+            For i = CInt(t * 100) To CInt((t + d) * 100) - 1 : speech(i) = 1 : Next
+            cues.Add((t, t + d + 0.4))
+            t += d + {0.3, 0.6, 1.0, 2.0, 4.0, 8.0}(rnd.Next(6))
+        End While
+        Return speech
+    End Function
+
+    <Fact>
+    Public Sub FixesAPartThatIsLate()
+        Dim truth As List(Of (Start As Double, [End] As Double)) = Nothing
+        Dim speech = MakeTalk(5, truth)
+        ' lines 60–120 are 3 s late (e.g. a recap that is not in this version of the video)
+        Dim edited = truth.Select(Function(c, i) If(i >= 60 AndAlso i < 120, (Start:=c.Start + 3, [End]:=c.End + 3), c)).ToList()
+        Dim r = SubtitleSync.FindBest(speech, edited)
+        Assert.True(r.ShouldApply)
+        Assert.Equal(1, r.PartsMoved)
+        Dim cues = edited.Select(Function(c) New SrtCue With {.Timing = SubtitleFormatter.FormatTiming(TimeSpan.FromSeconds(c.Start), TimeSpan.FromSeconds(c.End)), .Text = "x"}).ToList()
+        Dim fixedCues = SubtitleSync.Apply(cues, r)
+        For i = 0 To truth.Count - 1
+            Dim s As TimeSpan, e As TimeSpan
+            SubtitleFormatter.TryParseTiming(fixedCues(i).Timing, s, e)
+            Assert.InRange(s.TotalSeconds, truth(i).Start - 0.15, truth(i).Start + 0.15)
+        Next
+    End Sub
+
+    <Fact>
+    Public Sub CorrectFile_IsNotTouched()
+        Dim truth As List(Of (Start As Double, [End] As Double)) = Nothing
+        Dim speech = MakeTalk(6, truth)
+        Dim r = SubtitleSync.FindBest(speech, truth)
+        Assert.False(r.ShouldApply)
+        Assert.Equal(0, r.PartsMoved)
+    End Sub
+
+    <Fact>
+    Public Sub ParsesSileroOutput()
+        Dim output = "Detected 2 speech segments:" & vbLf & "Speech segment 0: start = 199.00, end = 1328.00" & vbLf & "Speech segment 1: start = 1347.00, end = 1731.00" & vbLf
+        Dim s = SubtitleSync.ParseSileroSegments(output, 30)
+        Assert.Equal(0, s(198))
+        Assert.Equal(1, s(199))
+        Assert.Equal(1, s(1328))
+        Assert.Equal(0, s(1340))
+        ' older builds print seconds
+        Dim s2 = SubtitleSync.ParseSileroSegments("Speech segment 0: start = 1.99, end = 13.28", 3000)
+        Assert.Equal(1, s2(500))
+        Assert.Null(SubtitleSync.ParseSileroSegments("nothing here", 30))
+    End Sub
+End Class

@@ -35,11 +35,16 @@ Public Module SubtitleSync
         ''' <summary>True when the timing should be changed.</summary>
         Public Property ShouldApply As Boolean
         Public Property Reason As String
+        ''' <summary>Extra seconds per line (lines with text, in file order) on top of ratio and offset; Nothing = none.</summary>
+        Public Property LineShifts As Double()
+        ''' <summary>Number of parts of the file that were moved separately.</summary>
+        Public Property PartsMoved As Integer
 
         Public Function Describe() As String
             Dim parts As New List(Of String)
             If Math.Abs(Offset) >= 0.005 Then parts.Add(If(Offset > 0, "+", "−") & Math.Abs(Offset).ToString("0.00") & " s")
             If Math.Abs(Ratio - 1) > 0.0001 Then parts.Add(DescribeRatio(Ratio))
+            If PartsMoved > 0 Then parts.Add(Loc.Tr("{0} part(s) moved separately", PartsMoved))
             Return If(parts.Count = 0, "0 s", String.Join(", ", parts))
         End Function
 
@@ -109,6 +114,66 @@ Public Module SubtitleSync
             If energies.Count = 0 Then Throw New Exception(Loc.Tr("Could not read the audio of the video.") & " " & Tail(err, 300))
         End Using
         Return SpeechFromEnergy(energies.ToArray())
+    End Function
+
+    ''' <summary>
+    ''' Speech detection with the Silero voice model of whisper.cpp (whisper-vad-speech-segments.exe + ggml-silero-*.bin).
+    ''' Much better than loudness at ignoring music, laughter and noise. Returns Nothing when it is not available.
+    ''' </summary>
+    Public Async Function DetectSpeechSileroAsync(ffmpegExe As String, vadExe As String, vadModel As String, media As String, audioStreamIndex As Integer,
+                                                  ct As CancellationToken, Optional progress As Action(Of Double) = Nothing,
+                                                  Optional durationSeconds As Double = 0) As Task(Of Byte())
+        If vadExe Is Nothing OrElse vadModel Is Nothing OrElse Not File.Exists(vadExe) OrElse Not File.Exists(vadModel) Then Return Nothing
+        Dim temp = Path.Combine(Path.GetTempPath(), "subtitle_machine_vad_" & Guid.NewGuid().ToString("N") & ".wav")
+        Try
+            Dim ff = Await RunAsync(ffmpegExe, $"-nostdin -hide_banner -y -i ""{media}"" -map 0:a:{Math.Max(0, audioStreamIndex)} -vn -sn -dn -ac 1 -ar 16000 -c:a pcm_s16le ""{temp}""", ct,
+                                    onStdErrLine:=Sub(line)
+                                                      If progress Is Nothing OrElse durationSeconds <= 0 Then Return
+                                                      Dim m = Text.RegularExpressions.Regex.Match(line, "time=(\d+):(\d+):(\d+(?:\.\d+)?)")
+                                                      If m.Success Then progress(Math.Min(1, (CInt(m.Groups(1).Value) * 3600 + CInt(m.Groups(2).Value) * 60 +
+                                                                                    Double.Parse(m.Groups(3).Value, Globalization.CultureInfo.InvariantCulture)) / durationSeconds) * 0.3)
+                                                  End Sub)
+            If ff.ExitCode <> 0 OrElse Not File.Exists(temp) Then Return Nothing
+            Dim seconds = (New FileInfo(temp).Length - 44) / 32000.0
+            Dim threads = Math.Max(1, Math.Min(8, Environment.ProcessorCount - 1))
+            Dim r = Await RunAsync(vadExe, $"-vm ""{vadModel}"" -f ""{temp}"" -np -t {threads} -vsd 100 -vp 30 -vspd 150", ct)
+            If r.ExitCode <> 0 Then Return Nothing
+            progress?.Invoke(1)
+            Return ParseSileroSegments(r.StdOut, seconds)
+        Catch ex As OperationCanceledException
+            Throw
+        Catch ex As Exception
+            Logger.Log("Silero speech detection failed, using the loudness detector: " & ex.Message)
+            Return Nothing
+        Finally
+            Try : File.Delete(temp) : Catch : End Try
+        End Try
+    End Function
+
+    ''' <summary>"Speech segment 3: start = 1747.00, end = 1878.00" (centiseconds; older builds print seconds) → speech per 10 ms.</summary>
+    Public Function ParseSileroSegments(output As String, audioSeconds As Double) As Byte()
+        Dim segs As New List(Of (A As Double, B As Double))
+        For Each m As Text.RegularExpressions.Match In Text.RegularExpressions.Regex.Matches(If(output, ""), "start\s*=\s*([\d.]+),\s*end\s*=\s*([\d.]+)")
+            segs.Add((Double.Parse(m.Groups(1).Value, Globalization.CultureInfo.InvariantCulture), Double.Parse(m.Groups(2).Value, Globalization.CultureInfo.InvariantCulture)))
+        Next
+        If segs.Count = 0 Then Return Nothing
+        ' centiseconds or seconds? the last segment cannot end long after the audio does
+        Dim factor = If(segs.Max(Function(s) s.B) > audioSeconds * 1.5 + 5, 1.0, 100.0) ' → frames of 10 ms
+        Dim n = CInt(Math.Ceiling(audioSeconds * 1000 / FrameMs)) + 1
+        Dim speech(n - 1) As Byte
+        For Each s In segs
+            Dim a = Math.Max(0, CInt(s.A * factor)), b = Math.Min(n - 1, CInt(s.B * factor))
+            For i = a To b : speech(i) = 1 : Next
+        Next
+        Return speech
+    End Function
+
+    ''' <summary>Silero when available, otherwise the built-in loudness detector.</summary>
+    Public Async Function DetectSpeechBestAsync(ffmpegExe As String, media As String, audioStreamIndex As Integer, ct As CancellationToken,
+                                                Optional progress As Action(Of Double) = Nothing, Optional durationSeconds As Double = 0) As Task(Of Byte())
+        Dim speech = Await DetectSpeechSileroAsync(ffmpegExe, WhisperEngineComponent.FindVadExe(), WhisperVadComponent.FindModel(), media, audioStreamIndex, ct, progress, durationSeconds)
+        If speech IsNot Nothing AndAlso speech.Any(Function(b) b = 1) Then Return speech
+        Return Await DetectSpeechAsync(ffmpegExe, media, audioStreamIndex, ct, progress, durationSeconds)
     End Function
 
     ''' <summary>Log energy (dB) of one 10 ms frame of 16-bit PCM.</summary>
@@ -218,6 +283,7 @@ Public Module SubtitleSync
         Fft(sRe, sIm, False)
 
         Dim best As Double = Double.MinValue
+        Dim ratio1Offset As Double = 0
         ' buffers reused for every ratio (they can be tens of MB for a long film)
         Dim uRe(size - 1) As Double, uIm(size - 1) As Double
         Dim cRe(size - 1) As Double, cIm(size - 1) As Double
@@ -250,7 +316,10 @@ Public Module SubtitleSync
             For i = 1 To scores.Length - 1
                 If scores(i) > scores(bi) Then bi = i
             Next
-            If ratio = 1.0 Then res.CurrentScore = scores(maxOff)
+            If ratio = 1.0 Then
+                res.CurrentScore = scores(maxOff)
+                ratio1Offset = (bi - maxOff) * FrameMs / 1000.0
+            End If
             If scores(bi) > best Then
                 best = scores(bi)
                 res.Score = scores(bi)
@@ -264,18 +333,199 @@ Public Module SubtitleSync
         ' so line the starts up with speech onsets within ±1 s of the coarse result.
         res.Offset += FineOffset(speech, cues, res.Ratio, res.Offset)
 
-        Dim changes = Math.Abs(res.Offset) >= 0.15 OrElse Math.Abs(res.Ratio - 1) > 0.0001
-        If Not changes Then
-            res.Reason = "already in sync"
-        ElseIf res.Confidence < MinConfidence Then
+        If res.Confidence < MinConfidence Then
+            ' No clear match at all: probably subtitles of another video (or another cut everywhere) – change nothing.
+            res.Offset = 0 : res.Ratio = 1
             res.Reason = $"match not clear enough (confidence {res.Confidence:0.0})"
-        ElseIf res.Score < res.CurrentScore + 0.03 Then
-            res.Reason = "not clearly better than the current timing"
+            Return res
+        End If
+        Dim fine1 = ratio1Offset + FineOffset(speech, cues, 1.0, ratio1Offset)
+
+        ' Candidates for the whole-file correction; each gets the part-by-part pass and the best total wins.
+        ' (A file where only the second half is late can look like a small frame-rate change as a whole.)
+        Dim candidates As New List(Of (Ratio As Double, Offset As Double))
+        candidates.Add((1.0, 0.0))
+        If Math.Abs(res.Offset) >= 0.15 OrElse Math.Abs(res.Ratio - 1) > 0.0001 Then candidates.Add((res.Ratio, res.Offset))
+        If Math.Abs(fine1) >= 0.15 AndAlso Math.Abs(res.Ratio - 1) > 0.0001 Then candidates.Add((1.0, fine1))
+        Dim bestValue = Double.MinValue
+        Dim chosen = candidates(0)
+        Dim chosenSeg As (Shifts As Double(), Total As Double, Parts As Integer) = Nothing
+        For ci = 0 To candidates.Count - 1
+            Dim c = candidates(ci)
+            Dim seg = SegmentShifts(speech, cues, c.Ratio, c.Offset)
+            Dim value = seg.Total - PartCost * seg.Parts - If(ci = 0, 0, GlobalCost)
+            If value > bestValue Then bestValue = value : chosen = c : chosenSeg = seg
+        Next
+        res.Ratio = chosen.Ratio
+        res.Offset = chosen.Offset
+        If chosenSeg.Parts > 0 Then
+            res.LineShifts = chosenSeg.Shifts
+            res.PartsMoved = chosenSeg.Parts
+        End If
+        Dim changes = Math.Abs(res.Offset) >= 0.15 OrElse Math.Abs(res.Ratio - 1) > 0.0001 OrElse res.PartsMoved > 0
+        If Not changes Then
+            res.Offset = 0
+            res.Reason = "already in sync"
         Else
             res.ShouldApply = True
             res.Reason = "ok"
         End If
         Return res
+    End Function
+
+    ' ------------------------------------------------------------------
+    '  Part-by-part correction (a different cut: intro, recap or ad break removed / added)
+    ' ------------------------------------------------------------------
+
+    ''' <summary>Largest correction for a part of the file or a single line, on top of the whole-file correction.</summary>
+    Private Const SegmentRangeSeconds As Double = 30
+    ''' <summary>Weight of a speech onset at the start of a line (in frames of speech).</summary>
+    Private Const OnsetWeight As Double = 40
+    ''' <summary>A part is moved only when at least this many lines in a row agree.</summary>
+    Private Const MinPartLines As Integer = 5
+    ''' <summary>Cost of every separately moved part or line, and of a whole-file change, when choosing between corrections.</summary>
+    Private Const PartCost As Double = 150
+    Private Const GlobalCost As Double = 30
+
+    ''' <summary>
+    ''' Extra shift per line (seconds) for files where only some lines are off:
+    '''  • parts: every line gets its own best position; a run of at least MinPartLines lines whose
+    '''    positions agree (median of 7 neighbours) is moved together (a different cut, a removed intro…);
+    ''' Single lines that were moved on their own are not corrected: one line alone fits almost anywhere
+    ''' in dense dialogue, so its right place cannot be found reliably.
+    ''' Also returns how well all lines then match the speech, and the number of moved parts / lines.
+    ''' </summary>
+    Private Function SegmentShifts(speech As Byte(), cues As IList(Of (Start As Double, [End] As Double)), ratio As Double, offset As Double) As (Shifts As Double(), Total As Double, Parts As Integer)
+        Dim n = cues.Count
+        Dim result(n - 1) As Double
+        Dim frames = speech.Length
+        Dim p = speech.Average(Function(b) CDbl(b))
+        If n < MinPartLines OrElse frames < 100 OrElse p <= 0 OrElse p >= 1 Then Return (result, 0, 0)
+        Dim neg = -p / (1 - p)
+        Dim prefix(frames) As Double
+        For i = 0 To frames - 1 : prefix(i + 1) = prefix(i) + If(speech(i) = 1, 1.0, neg) : Next
+        Dim onset = OnsetDensity(speech)
+        Dim range = CInt(SegmentRangeSeconds * 1000 / FrameMs)
+
+        ' line positions (frames) after the whole-file correction; the ~0.3 s a subtitle stays after the speech is ignored
+        Dim st(n - 1) As Integer, en(n - 1) As Integer
+        For i = 0 To n - 1
+            st(i) = CInt(Math.Round((cues(i).Start * ratio + offset) * 1000 / FrameMs))
+            en(i) = Math.Max(st(i) + 10, CInt(Math.Round((cues(i).End * ratio + offset) * 1000 / FrameMs)) - 30)
+        Next
+        Dim score = Function(i As Integer, k As Integer) As Double
+                        Dim a = Math.Min(frames, Math.Max(0, st(i) + k)), b = Math.Min(frames, Math.Max(0, en(i) + k))
+                        Dim v = prefix(b) - prefix(a)
+                        If st(i) + k >= 0 AndAlso st(i) + k < frames Then v += OnsetWeight * onset(st(i) + k)
+                        Return v
+                    End Function
+
+        ' 1) best position of every line: judged together with its neighbours (one line alone fits almost anywhere
+        '    in dense dialogue; the pattern of 9 lines and their pauses does not).
+        Const half As Integer = 4
+        Dim local(n - 1) As Integer
+        Dim keys As New List(Of Integer)
+        For k = -range To range Step 2 : keys.Add(k) : Next
+        Dim wScores(n - 1)() As Double
+        For i = 0 To n - 1 : wScores(i) = New Double(keys.Count - 1) {} : Next
+        Dim sc(n - 1) As Double
+        For ki = 0 To keys.Count - 1
+            Dim k = keys(ki)
+            For i = 0 To n - 1 : sc(i) = score(i, k) : Next
+            Dim run As Double = 0
+            For i = 0 To Math.Min(n - 1, half) : run += sc(i) : Next
+            For i = 0 To n - 1
+                wScores(i)(ki) = run
+                If i + half + 1 < n Then run += sc(i + half + 1)
+                If i - half >= 0 Then run -= sc(i - half)
+            Next
+        Next
+        For i = 0 To n - 1
+            Dim bw = 0
+            For ki = 1 To keys.Count - 1
+                If wScores(i)(ki) > wScores(i)(bw) OrElse (wScores(i)(ki) = wScores(i)(bw) AndAlso Math.Abs(keys(ki)) < Math.Abs(keys(bw))) Then bw = ki
+            Next
+            local(i) = keys(bw)
+        Next
+        wScores = Nothing
+
+        ' 2) parts: runs of lines whose (neighbourhood) positions agree
+        Dim med(n - 1) As Integer
+        For i = 0 To n - 1
+            Dim lo = Math.Max(0, i - 2), hi = Math.Min(n - 1, i + 2)
+            Dim w = Enumerable.Range(lo, hi - lo + 1).Select(Function(j) local(j)).OrderBy(Function(x) x).ToList()
+            med(i) = w(w.Count \ 2)
+        Next
+        Dim shiftF(n - 1) As Integer
+        Dim inPart(n - 1) As Boolean
+        Dim parts = 0
+        Dim r = 0
+        While r < n
+            If Math.Abs(med(r)) < 30 Then r += 1 : Continue While
+            Dim e = r
+            While e + 1 < n AndAlso Math.Abs(med(e + 1)) >= 30 AndAlso Math.Abs(med(e + 1) - med(e)) <= 30 AndAlso Math.Abs(med(e + 1) - med(r)) <= 100
+                e += 1
+            End While
+            If e - r + 1 >= MinPartLines Then
+                ' one shift for the whole part: best total score near the median
+                Dim center = med(r + (e - r) \ 2)
+                Dim bestK = center, bestV = Double.MinValue
+                For k = center - 60 To center + 60
+                    Dim v As Double = 0
+                    For i = r To e : v += score(i, k) : Next
+                    If v > bestV Then bestV = v : bestK = k
+                Next
+                Dim baseV As Double = 0
+                For i = r To e : baseV += score(i, 0) : Next
+                If bestV > baseV + 20 * (e - r + 1) Then
+                    For i = r To e : shiftF(i) = bestK : inPart(i) = True : Next
+                    parts += 1
+                    ' the edges: neighbourhood windows blur the exact first / last line of a part
+                    Dim a = r - 1
+                    While a >= 0 AndAlso Not inPart(a) AndAlso r - a <= half + 1 AndAlso score(a, bestK) > score(a, shiftF(a)) + 10
+                        shiftF(a) = bestK : inPart(a) = True : a -= 1
+                    End While
+                    Dim b = e + 1
+                    While b < n AndAlso b - e <= half + 1 AndAlso score(b, bestK) > score(b, 0) + 10
+                        shiftF(b) = bestK : inPart(b) = True : b += 1
+                    End While
+                    e = b - 1
+                End If
+            End If
+            r = e + 1
+        End While
+        ' lines inside a part that clearly belong to the unshifted timing (part edges found too wide)
+        For i = 0 To n - 1
+            If inPart(i) AndAlso (i = 0 OrElse Not inPart(i - 1) OrElse i = n - 1 OrElse Not inPart(i + 1)) AndAlso score(i, 0) > score(i, shiftF(i)) + 10 Then
+                shiftF(i) = 0 : inPart(i) = False
+            End If
+        Next
+
+        Dim total As Double = 0
+        For i = 0 To n - 1
+            result(i) = shiftF(i) * FrameMs / 1000.0
+            total += score(i, shiftF(i))
+        Next
+        Return (result, total, parts)
+    End Function
+
+    ''' <summary>Speech onsets (after at least 200 ms of silence), spread with a triangle of ±150 ms.</summary>
+    Private Function OnsetDensity(speech As Byte()) As Double()
+        Dim n = speech.Length
+        Dim density(n - 1) As Double
+        Const spread As Integer = 15
+        Dim quiet = 0
+        For i = 0 To n - 1
+            If speech(i) = 0 Then quiet += 1 : Continue For
+            If i > 0 AndAlso speech(i - 1) = 0 AndAlso quiet >= 20 Then
+                For d = -spread To spread
+                    Dim j = i + d
+                    If j >= 0 AndAlso j < n Then density(j) = Math.Max(density(j), 1 - Math.Abs(d) / (spread + 1.0))
+                Next
+            End If
+            quiet = 0
+        Next
+        Return density
     End Function
 
     ''' <summary>How far the peak stands above the other offsets (excluding ±2 s around it), in standard deviations.</summary>
@@ -375,39 +625,48 @@ Public Module SubtitleSync
     '  Cues
     ' ------------------------------------------------------------------
 
+    ''' <summary>Times of the lines that have text (the lines used for matching, in file order).</summary>
     Public Function CueTimes(cues As IEnumerable(Of SrtCue)) As List(Of (Start As Double, [End] As Double))
         Dim list As New List(Of (Start As Double, [End] As Double))
         For Each c In cues
             Dim s As TimeSpan, e As TimeSpan
-            If String.IsNullOrWhiteSpace(c.Text) OrElse Not SubtitleFormatter.TryParseTiming(c.Timing, s, e) Then Continue For
-            list.Add((s.TotalSeconds, e.TotalSeconds))
+            If IsTimedLine(c, s, e) Then list.Add((s.TotalSeconds, e.TotalSeconds))
         Next
         Return list
+    End Function
+
+    Private Function IsTimedLine(c As SrtCue, ByRef s As TimeSpan, ByRef e As TimeSpan) As Boolean
+        Return Not String.IsNullOrWhiteSpace(c.Text) AndAlso SubtitleFormatter.TryParseTiming(c.Timing, s, e)
     End Function
 
     ''' <summary>Returns new cues with every time changed to time × ratio + offset (negative times become 0).</summary>
     Public Function Apply(cues As IEnumerable(Of SrtCue), r As SyncResult) As List(Of SrtCue)
         Dim result As New List(Of SrtCue)
+        Dim line = -1
         For Each c In cues
             Dim s As TimeSpan, e As TimeSpan
             Dim timing = c.Timing
+            If IsTimedLine(c, s, e) Then line += 1
             If SubtitleFormatter.TryParseTiming(c.Timing, s, e) Then
-                timing = SubtitleFormatter.FormatTiming(Shift(s, r), Shift(e, r))
+                Dim li = Math.Max(0, line)
+                timing = SubtitleFormatter.FormatTiming(Shift(s, r, li), Shift(e, r, li))
             End If
             result.Add(New SrtCue With {.Index = c.Index, .Timing = timing, .Text = c.Text})
         Next
         Return result
     End Function
 
-    Public Function Shift(t As TimeSpan, r As SyncResult) As TimeSpan
-        Return TimeSpan.FromMilliseconds(Math.Max(0, Math.Round((t.TotalSeconds * r.Ratio + r.Offset) * 1000)))
+    ''' <summary>New time of a moment of line number <paramref name="line"/> (counting only lines with text).</summary>
+    Public Function Shift(t As TimeSpan, r As SyncResult, line As Integer) As TimeSpan
+        Dim extra = If(r.LineShifts IsNot Nothing AndAlso r.LineShifts.Length > 0, r.LineShifts(Math.Min(line, r.LineShifts.Length - 1)), 0.0)
+        Return TimeSpan.FromMilliseconds(Math.Max(0, Math.Round((t.TotalSeconds * r.Ratio + r.Offset + extra) * 1000)))
     End Function
 
     ''' <summary>Detects speech and syncs the subtitle file; writes the result to outputSrt when it should be changed.</summary>
     Public Async Function SyncFileAsync(ffmpegExe As String, media As String, audioStreamIndex As Integer, inputSrt As String, outputSrt As String,
                                         ct As CancellationToken, Optional progress As Action(Of Double) = Nothing,
                                         Optional durationSeconds As Double = 0) As Task(Of SyncResult)
-        Dim speech = Await DetectSpeechAsync(ffmpegExe, media, audioStreamIndex, ct, progress, durationSeconds)
+        Dim speech = Await DetectSpeechBestAsync(ffmpegExe, media, audioStreamIndex, ct, progress, durationSeconds)
         Dim cues = SrtFile.Load(inputSrt)
         Dim r = FindBest(speech, CueTimes(cues))
         Logger.Log($"Sync {Path.GetFileName(inputSrt)}: {r.Describe()} confidence {r.Confidence:0.0} score {r.Score:0.000} (current {r.CurrentScore:0.000}) → {r.Reason}")

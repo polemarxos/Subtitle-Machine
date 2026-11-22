@@ -229,7 +229,7 @@ Public Class SubtitlePipeline
         If audio Is Nothing Then Throw New Exception(Loc.Tr("The video has no audio track."))
         Dim duration = Await ProbeDurationAsync(media, ct)
         report(Loc.Tr("{0}: listening to the audio", name), 0)
-        Dim speech = Await SubtitleSync.DetectSpeechAsync(FfmpegComponent.FfmpegExe, media, audio.SubIndex, ct,
+        Dim speech = Await SubtitleSync.DetectSpeechBestAsync(FfmpegComponent.FfmpegExe, media, audio.SubIndex, ct,
                                                           Sub(f) report(Loc.Tr("{0}: listening to the audio {1:P0}", name, f), 0.9 * f), duration)
         Dim notes As New List(Of String)
         Dim anyChange = False
