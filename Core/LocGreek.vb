@@ -313,7 +313,6 @@ Friend NotInheritable Class GreekStrings
         {"Update your graphics driver, or choose 'Vulkan' or 'CPU' in Components.", "Ενημερώστε τον οδηγό της κάρτας γραφικών ή επιλέξτε «Vulkan» ή «CPU» στα Εργαλεία."},
         {"Urdu", "Ούρντου"},
         {"Version check complete.", "Ο έλεγχος εκδόσεων ολοκληρώθηκε."},
-        {"Version {0} is ready. Restart now to install it?", "Η έκδοση {0} είναι έτοιμη. Επανεκκίνηση τώρα για εγκατάσταση;"},
         {"Video output", "Έξοδος βίντεο"},
         {"Video, audio & subtitles", "Βίντεο, ήχος και υπότιτλοι"},
         {"Vietnamese", "Βιετναμικά"},

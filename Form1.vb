@@ -374,9 +374,7 @@ Public Class Form1
         lblStatus.Text = Loc.Tr("Checking for a new version…")
         Try
             If Await AutoUpdateAppAsync(interactive:=True) Then
-                lblStatus.Text = Loc.Tr("Update ready.")
-                If MessageBox.Show(Me, Loc.Tr("Version {0} is ready. Restart now to install it?", SelfUpdater.PendingTag), Loc.Tr("Update"),
-                                   MessageBoxButtons.YesNo, MessageBoxIcon.Question) = DialogResult.Yes Then btnRestart.PerformClick()
+                lblStatus.Text = Loc.Tr("Update ready.") ' the blue bar above shows it, with "Restart now"
             Else
                 lblStatus.Text = Loc.Tr("Subtitle Machine is up to date.")
                 ShowComponents(autoInstall:=False) ' also check FFmpeg, Whisper, llama.cpp and the models
