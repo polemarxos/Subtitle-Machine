@@ -62,6 +62,8 @@ Public Class Form1
     '  Startup
     ' =====================================================================
     Private Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
+        BuildComponentBanner()
+        lblStatus.UseMnemonic = False : lblUpdate.UseMnemonic = False ' "&" in texts like "Components & settings"
         Dim ver = SelfUpdater.CurrentVersion().ToString(3)
         Text = $"Subtitle Machine {ver}"
         lblVersion.Text = "v" & ver
@@ -245,9 +247,9 @@ Public Class Form1
         ShowComponents(autoInstall:=False)
     End Sub
 
-    Private Sub ShowComponents(autoInstall As Boolean)
+    Private Sub ShowComponents(autoInstall As Boolean, Optional installUpdates As Boolean = False)
         DisposeTranslator() ' engine files may be replaced
-        Using f As New ComponentsForm(_settings, autoInstall)
+        Using f As New ComponentsForm(_settings, autoInstall, installUpdates)
             f.ShowDialog(Me)
         End Using
         PopulateModelCombo()
@@ -306,6 +308,50 @@ Public Class Form1
     End Sub
     Private _restartAfterUpdate As Boolean
 
+    ' ----- Banner: component updates (built in code, below the app-update banner) -----
+    Private ReadOnly pnlCompUpdate As New Panel With {.Dock = DockStyle.Top, .Height = 36, .Visible = False, .Tag = "keep"}
+    Private ReadOnly lblCompUpdate As New Label With {.ForeColor = Color.White, .AutoEllipsis = True, .UseMnemonic = False}
+    Private ReadOnly btnCompUpdate As New Button With {.FlatStyle = FlatStyle.Flat, .BackColor = Color.White, .UseVisualStyleBackColor = False}
+    Private ReadOnly btnCompLater As New Button With {.FlatStyle = FlatStyle.Flat, .ForeColor = Color.White, .UseVisualStyleBackColor = False}
+
+    Private Sub BuildComponentBanner()
+        Dim amber = Color.FromArgb(166, 98, 0)
+        pnlCompUpdate.BackColor = amber
+        pnlCompUpdate.Width = ClientSize.Width ' before adding right-anchored buttons
+        btnCompUpdate.Text = Loc.Tr("Update now")
+        btnCompUpdate.ForeColor = amber
+        btnCompUpdate.FlatAppearance.BorderSize = 0
+        btnCompLater.Text = Loc.Tr("Later")
+        btnCompLater.BackColor = amber
+        btnCompLater.FlatAppearance.BorderColor = Color.White
+        Dim wUpd = Math.Max(120, TextRenderer.MeasureText(btnCompUpdate.Text, Font).Width + 24)
+        Dim wLater = Math.Max(80, TextRenderer.MeasureText(btnCompLater.Text, Font).Width + 24)
+        btnCompLater.SetBounds(pnlCompUpdate.Width - 12 - wLater, 5, wLater, 26)
+        btnCompUpdate.SetBounds(btnCompLater.Left - 8 - wUpd, 5, wUpd, 26)
+        lblCompUpdate.SetBounds(12, 9, btnCompUpdate.Left - 24, 20)
+        btnCompUpdate.Anchor = AnchorStyles.Top Or AnchorStyles.Right
+        btnCompLater.Anchor = AnchorStyles.Top Or AnchorStyles.Right
+        lblCompUpdate.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
+        pnlCompUpdate.Controls.AddRange(New Control() {lblCompUpdate, btnCompUpdate, btnCompLater})
+        Controls.Add(pnlCompUpdate)
+        ' docked tops are laid out from the last control: put it just below the app-update banner
+        Controls.SetChildIndex(pnlCompUpdate, Controls.GetChildIndex(pnlUpdate))
+        AddHandler btnCompLater.Click, Sub() pnlCompUpdate.Visible = False
+        AddHandler btnCompUpdate.Click, Sub()
+                                            If _cts IsNot Nothing Then
+                                                MessageBox.Show(Me, Loc.Tr("Wait until the current files are finished, or press Stop."), Loc.Tr("Update"), MessageBoxButtons.OK, MessageBoxIcon.Information)
+                                                Return
+                                            End If
+                                            pnlCompUpdate.Visible = False
+                                            ShowComponents(autoInstall:=False, installUpdates:=True)
+                                        End Sub
+    End Sub
+
+    Private Sub ShowComponentBanner(outdated As List(Of String))
+        lblCompUpdate.Text = Loc.Tr("Updates available: {0}", String.Join(", ", outdated))
+        pnlCompUpdate.Visible = True
+    End Sub
+
     Private Async Function CheckComponentUpdatesAsync() As Task
         Try
             Using cts As New CancellationTokenSource(TimeSpan.FromSeconds(30))
@@ -316,7 +362,7 @@ Public Class Form1
                     Catch
                     End Try
                 Next
-                If outdated.Count > 0 AndAlso _cts Is Nothing Then lblStatus.Text = Loc.Tr("Updates available: {0} – click Components & settings.", String.Join(", ", outdated))
+                If outdated.Count > 0 Then ShowComponentBanner(outdated)
             End Using
         Catch ex As Exception
             Logger.Log("Component update check failed: " & ex.Message)

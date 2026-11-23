@@ -1,6 +1,10 @@
 ''' <summary>Greek interface texts. Key = English text exactly as written in the code (with {0} placeholders).</summary>
 Friend NotInheritable Class GreekStrings
     Public Shared ReadOnly Map As New Dictionary(Of String, String)(StringComparer.Ordinal) From {
+        {"Update now", "Ενημέρωση τώρα"},
+        {"Later", "Αργότερα"},
+        {"Updates available: {0}", "Υπάρχουν ενημερώσεις: {0}"},
+        {"Wait until the current files are finished, or press Stop.", "Περιμένετε να τελειώσουν τα τρέχοντα αρχεία ή πατήστε Διακοπή."},
         {"These are already up to date:", "Αυτά είναι ήδη ενημερωμένα:"},
         {"Download them again anyway (only needed to repair a broken installation)?", "Να κατέβουν ξανά παρ' όλα αυτά (χρειάζεται μόνο για επισκευή χαλασμένης εγκατάστασης);"},
         {"Write a log file (for troubleshooting; at most about 10 MB)", "Καταγραφή σε αρχείο log (για διάγνωση προβλημάτων· έως περίπου 10 MB)"},
@@ -307,7 +311,6 @@ Friend NotInheritable Class GreekStrings
         {"Update ready.", "Η ενημέρωση είναι έτοιμη."},
         {"Update Subtitle Machine automatically", "Αυτόματη ενημέρωση του Subtitle Machine"},
         {"Update your graphics driver, or choose 'Vulkan' or 'CPU' in Components.", "Ενημερώστε τον οδηγό της κάρτας γραφικών ή επιλέξτε «Vulkan» ή «CPU» στα Εργαλεία."},
-        {"Updates available: {0} – click Components & settings.", "Υπάρχουν ενημερώσεις: {0} – πατήστε «Εργαλεία και ρυθμίσεις»."},
         {"Urdu", "Ούρντου"},
         {"Version check complete.", "Ο έλεγχος εκδόσεων ολοκληρώθηκε."},
         {"Version {0} is ready. Restart now to install it?", "Η έκδοση {0} είναι έτοιμη. Επανεκκίνηση τώρα για εγκατάσταση;"},

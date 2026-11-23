@@ -10,6 +10,8 @@ Public Class ComponentsForm
     Private ReadOnly _settings As AppSettings
     Private ReadOnly _autoInstall As Boolean
     Private _ignoreCheck As Boolean
+    ''' <summary>Opened from the "Update now" banner: install the updates found right away.</summary>
+    Private ReadOnly _installUpdates As Boolean
     Private _components As List(Of ToolComponent)
     Private ReadOnly _latest As New Dictionary(Of String, RemoteVersion)
     Private ReadOnly _errors As New Dictionary(Of String, String)
@@ -47,9 +49,10 @@ Public Class ComponentsForm
     Private Shared ReadOnly BgControl As Color = Color.FromArgb(45, 45, 48)
     Private Shared ReadOnly Accent As Color = Color.FromArgb(0, 122, 204)
 
-    Public Sub New(settings As AppSettings, Optional autoInstallMissing As Boolean = False)
+    Public Sub New(settings As AppSettings, Optional autoInstallMissing As Boolean = False, Optional installUpdates As Boolean = False)
         _settings = settings
         _autoInstall = autoInstallMissing
+        _installUpdates = installUpdates
         BuildUi()
     End Sub
 
@@ -166,6 +169,7 @@ Public Class ComponentsForm
 
         btnCheck.Tag = "accent" : btnInstall.Tag = "accent" : btnCancel.Tag = "danger"
         lblStatus.Tag = "muted"
+        lblStatus.UseMnemonic = False
         Theme.Apply(Me)
 
         ' Dark/light column header instead of the white Windows header.
@@ -284,6 +288,9 @@ Public Class ComponentsForm
         _loading = False
         RebuildList()
         Await CheckUpdatesAsync()
+        If _installUpdates AndAlso Not IsDisposed AndAlso lv.Items.Cast(Of ListViewItem)().Any(Function(i) i.Checked) Then
+            Await InstallSelectedAsync()
+        End If
         If _autoInstall AndAlso _components.Any(Function(c) c.IsRequired() AndAlso Not c.IsInstalled()) Then
             Await InstallSelectedAsync()
             ' First-time setup finished → close by itself and go straight to the main window.

@@ -74,7 +74,7 @@ Public Class SubtitleEditorForm
         Dim bottom As New Panel With {.Dock = DockStyle.Bottom, .Width = ClientSize.Width, .Height = 54, .Tag = "panel"}
         btnRetranslate.Text = Loc.Tr("Re-translate selected") : btnRetranslate.SetBounds(12, 12, 170, 32)
         btnSync.Text = Loc.Tr("Sync to video") : btnSync.SetBounds(190, 12, Math.Max(140, TextRenderer.MeasureText(btnSync.Text, Font).Width + 24), 32)
-        lblStatus.SetBounds(btnSync.Right + 12, 18, 848 - btnSync.Right - 12, 22) : lblStatus.Tag = "muted" : lblStatus.AutoEllipsis = True
+        lblStatus.SetBounds(btnSync.Right + 12, 18, 848 - btnSync.Right - 12, 22) : lblStatus.Tag = "muted" : lblStatus.AutoEllipsis = True : lblStatus.UseMnemonic = False
         lblStatus.Anchor = AnchorStyles.Left Or AnchorStyles.Right Or AnchorStyles.Top
         btnSave.Text = Loc.Tr("Save") : btnSave.Tag = "accent" : btnSave.SetBounds(860, 12, 100, 32) : btnSave.Anchor = AnchorStyles.Right Or AnchorStyles.Top
         btnClose.Text = Loc.Tr("Close") : btnClose.SetBounds(968, 12, 100, 32) : btnClose.Anchor = AnchorStyles.Right Or AnchorStyles.Top
