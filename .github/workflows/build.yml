@@ -63,10 +63,39 @@ jobs:
           Copy-Item "out/sc/Subtitle Machine.exe" dist/SubtitleMachine-standalone.exe
           Get-ChildItem dist | Format-Table Name, Length
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload exes
+        id: upload
+        uses: actions/upload-artifact@v4
         with:
           name: SubtitleMachine
           path: dist/*.exe
+
+      # Code signing (SignPath Foundation, free for open source) – only for releases, and only once the
+      # repository variables / secret below exist. Each signing request is approved manually on SignPath.
+      - name: Sign with SignPath
+        id: sign
+        if: vars.SIGNPATH_ORGANIZATION_ID != '' && (github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && inputs.create_release))
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.upload.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 7200
+          output-artifact-directory: signed
+
+      - name: Use the signed exes
+        if: steps.sign.outcome == 'success'
+        shell: pwsh
+        run: |
+          Copy-Item signed/*.exe dist/ -Force
+          Get-ChildItem dist/*.exe | ForEach-Object {
+            $sig = Get-AuthenticodeSignature $_.FullName
+            "{0}: {1} ({2})" -f $_.Name, $sig.Status, $sig.SignerCertificate.Subject
+            if ($sig.Status -ne 'Valid') { throw "$($_.Name) is not signed correctly" }
+          }
 
       # A tag like v1.3.0, a release created on github.com, or "Run workflow" publishes the exes;
       # running copies of the app update themselves from the newest release.
@@ -86,3 +115,5 @@ jobs:
             - `SubtitleMachine.exe` – smaller; needs the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
 
             FFmpeg, Whisper, llama.cpp and the TranslateGemma model are downloaded by the app on first start.
+
+            [Code signing policy](https://github.com/polemarxos/Subtitle-Machine#code-signing-policy) · [Privacy](https://github.com/polemarxos/Subtitle-Machine#privacy)

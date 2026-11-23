@@ -12,10 +12,10 @@
     <OptionStrict>On</OptionStrict>
     <ApplicationIcon>ico.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>1.8.3</Version>
-    <AssemblyVersion>1.5.0.0</AssemblyVersion>
-    <FileVersion>1.5.0.0</FileVersion>
+    <Version>1.8.4</Version>
     <Product>Subtitle Machine</Product>
+    <Company>polemarxos</Company>
+    <Copyright>Copyright © polemarxos – MIT License</Copyright>
     <Description>Extract, OCR, transcribe (Whisper) and translate (TranslateGemma) subtitles</Description>
     <RepositoryUrl>https://github.com/polemarxos/Subtitle-Machine</RepositoryUrl>
   </PropertyGroup>
