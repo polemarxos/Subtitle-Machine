@@ -9,7 +9,11 @@ Public Class ComponentsForm
 
     Private ReadOnly _settings As AppSettings
     Private ReadOnly _autoInstall As Boolean
-    Private _ignoreCheck As Boolean
+    ''' <summary>
+    ''' Components ticked for install/update. Kept by the app itself, not by the Windows list checkboxes,
+    ''' which ticked an up-to-date model on their own.
+    ''' </summary>
+    Private ReadOnly _selected As New HashSet(Of String)
     ''' <summary>Opened from the "Update now" banner: install the updates found right away.</summary>
     Private ReadOnly _installUpdates As Boolean
     Private _components As List(Of ToolComponent)
@@ -75,7 +79,7 @@ Public Class ComponentsForm
 
         lv.SetBounds(12, 52, 756, 170)
         lv.View = View.Details
-        lv.CheckBoxes = True
+        lv.CheckBoxes = False ' boxes are drawn and handled by the app (see _selected)
         lv.FullRowSelect = True
         lv.HeaderStyle = ColumnHeaderStyle.Nonclickable
         lv.BackColor = BgDark
@@ -85,7 +89,6 @@ Public Class ComponentsForm
         lv.Columns.Add("Installed", 175)
         lv.Columns.Add("Latest", 175)
         lv.Columns.Add("Status", 140)
-        AddHandler lv.ItemChecked, Sub() UpdateSelectionSize()
 
         Dim grp As New GroupBox With {.Text = Loc.Tr("Settings"), .ForeColor = Color.White}
         grp.SetBounds(12, 230, 756, 478)
@@ -182,18 +185,19 @@ Public Class ComponentsForm
                                             TextRenderer.DrawText(e.Graphics, e.Header.Text, lv.Font, r, Theme.Current.Muted, TextFormatFlags.VerticalCenter Or TextFormatFlags.EndEllipsis)
                                         End Sub
         ' Rows are drawn here too: the Windows default drawing of an owner-drawn list can show a tick
-        ' on a row that is not ticked. The box is drawn from the row's real Checked state.
+        ' on a row that is not ticked. The box is drawn from _selected.
         AddHandler lv.DrawItem, Sub(s, e) e.DrawDefault = False
         AddHandler lv.DrawSubItem, AddressOf DrawComponentCell
-        AddHandler lv.ItemChecked, Sub(s, e) lv.Invalidate(e.Item.Bounds)
-        ' While downloading the list stays readable but the ticks cannot be changed.
-        ' Windows toggles a row's tick on double-click, which ticked components by accident.
-        ' Only a click on the box itself (or the space bar) changes it.
-        AddHandler lv.MouseDown, Sub(s, e) _ignoreCheck = e.Clicks > 1
-        AddHandler lv.MouseUp, Sub(s, e) _ignoreCheck = False
-        AddHandler lv.ItemCheck, Sub(s, e)
-                                     If _cts IsNot Nothing OrElse _ignoreCheck Then e.NewValue = e.CurrentValue
-                                 End Sub
+        ' A click on the box, or Space on the selected rows, ticks / unticks (not while downloading).
+        AddHandler lv.MouseClick, Sub(s, e)
+                                      Dim hit = lv.HitTest(e.Location)
+                                      If hit.Item IsNot Nothing AndAlso e.Button = MouseButtons.Left AndAlso e.X < hit.Item.Bounds.X + 28 Then ToggleSelection(hit.Item)
+                                  End Sub
+        AddHandler lv.KeyDown, Sub(s, e)
+                                   If e.KeyCode <> Keys.Space Then Return
+                                   For Each it As ListViewItem In lv.SelectedItems : ToggleSelection(it) : Next
+                                   e.Handled = True
+                               End Sub
 
         ' Scale positions with Windows display scaling (125 %, 150 % …).
         AutoScaleDimensions = New SizeF(7.0F, 15.0F)
@@ -288,7 +292,7 @@ Public Class ComponentsForm
         _loading = False
         RebuildList()
         Await CheckUpdatesAsync()
-        If _installUpdates AndAlso Not IsDisposed AndAlso lv.Items.Cast(Of ListViewItem)().Any(Function(i) i.Checked) Then
+        If _installUpdates AndAlso Not IsDisposed AndAlso _selected.Count > 0 Then
             Await InstallSelectedAsync()
         End If
         If _autoInstall AndAlso _components.Any(Function(c) c.IsRequired() AndAlso Not c.IsInstalled()) Then
@@ -387,10 +391,22 @@ Public Class ComponentsForm
             If status = Loc.Tr("Update available") Then item.ForeColor = Theme.Current.Warn
             If status = Loc.Tr("Up to date") Then item.ForeColor = Theme.Current.Ok
             lv.Items.Add(item)
-            item.Checked = check ' set after adding, so Windows keeps it on this row
+            If check Then _selected.Add(c.Id) Else _selected.Remove(c.Id)
         Next
         lv.EndUpdate()
         lv.Invalidate()
+        UpdateSelectionSize()
+    End Sub
+
+    Private Function IsSelected(it As ListViewItem) As Boolean
+        Return _selected.Contains(DirectCast(it.Tag, ToolComponent).Id)
+    End Function
+
+    Private Sub ToggleSelection(it As ListViewItem)
+        If _cts IsNot Nothing Then Return
+        Dim id = DirectCast(it.Tag, ToolComponent).Id
+        If Not _selected.Remove(id) Then _selected.Add(id)
+        lv.Invalidate(it.Bounds)
         UpdateSelectionSize()
     End Sub
 
@@ -402,7 +418,7 @@ Public Class ComponentsForm
         End Using
         Dim r = e.Bounds
         If e.ColumnIndex = 0 Then
-            Dim state = If(e.Item.Checked, VisualStyles.CheckBoxState.CheckedNormal, VisualStyles.CheckBoxState.UncheckedNormal)
+            Dim state = If(IsSelected(e.Item), VisualStyles.CheckBoxState.CheckedNormal, VisualStyles.CheckBoxState.UncheckedNormal)
             Dim glyph = CheckBoxRenderer.GetGlyphSize(g, state)
             CheckBoxRenderer.DrawCheckBox(g, New Point(r.X + 4, r.Y + (r.Height - glyph.Height) \ 2), state)
             r = New Rectangle(r.X + glyph.Width + 8, r.Y, r.Width - glyph.Width - 8, r.Height)
@@ -418,7 +434,7 @@ Public Class ComponentsForm
         If _cts IsNot Nothing Then Return
         Dim total As Long = 0
         For Each it As ListViewItem In lv.Items
-            If Not it.Checked Then Continue For
+            If Not IsSelected(it) Then Continue For
             Dim rv As RemoteVersion = Nothing
             If _latest.TryGetValue(DirectCast(it.Tag, ToolComponent).Id, rv) Then total += rv.TotalSize
         Next
@@ -473,7 +489,7 @@ Public Class ComponentsForm
 
     Private Async Function InstallSelectedAsync() As Task
         If _cts IsNot Nothing Then Return
-        Dim selected = lv.Items.Cast(Of ListViewItem)().Where(Function(i) i.Checked).Select(Function(i) DirectCast(i.Tag, ToolComponent)).ToList()
+        Dim selected = _components.Where(Function(c) _selected.Contains(c.Id)).ToList()
         ' A ticked component that is already up to date would be downloaded again (gigabytes for a model): ask first.
         Dim current = selected.Where(Function(c)
                                          Dim rv As RemoteVersion = Nothing
@@ -486,9 +502,8 @@ Public Class ComponentsForm
             If answer = DialogResult.Cancel Then Return
             If answer = DialogResult.No Then
                 selected = selected.Except(current).ToList()
-                For Each it As ListViewItem In lv.Items
-                    If current.Contains(DirectCast(it.Tag, ToolComponent)) Then it.Checked = False
-                Next
+                For Each c In current : _selected.Remove(c.Id) : Next
+                lv.Invalidate()
             End If
         End If
         If selected.Count = 0 Then
