@@ -367,7 +367,7 @@ Public Class ComponentsForm
             _errors.TryGetValue(c.Id, err)
 
             Dim status As String
-            Dim check As Boolean
+            Dim check As Boolean = False ' an uninitialised variable in a VB loop keeps the previous row's value
             If Not c.IsInstalled() Then
                 status = If(c.IsRequired(), Loc.Tr("Missing (required)"), Loc.Tr("Not installed (optional)"))
                 check = c.IsRequired()
