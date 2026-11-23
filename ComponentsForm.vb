@@ -177,8 +177,11 @@ Public Class ComponentsForm
                                             Dim r = e.Bounds : r.Inflate(-6, 0)
                                             TextRenderer.DrawText(e.Graphics, e.Header.Text, lv.Font, r, Theme.Current.Muted, TextFormatFlags.VerticalCenter Or TextFormatFlags.EndEllipsis)
                                         End Sub
-        AddHandler lv.DrawItem, Sub(s, e) e.DrawDefault = True
-        AddHandler lv.DrawSubItem, Sub(s, e) e.DrawDefault = True
+        ' Rows are drawn here too: the Windows default drawing of an owner-drawn list can show a tick
+        ' on a row that is not ticked. The box is drawn from the row's real Checked state.
+        AddHandler lv.DrawItem, Sub(s, e) e.DrawDefault = False
+        AddHandler lv.DrawSubItem, AddressOf DrawComponentCell
+        AddHandler lv.ItemChecked, Sub(s, e) lv.Invalidate(e.Item.Bounds)
         ' While downloading the list stays readable but the ticks cannot be changed.
         ' Windows toggles a row's tick on double-click, which ticked components by accident.
         ' Only a click on the box itself (or the space bar) changes it.
@@ -369,19 +372,39 @@ Public Class ComponentsForm
 
             Dim latestText = If(latest IsNot Nothing, latest.Version, If(err IsNot Nothing, "—", "?"))
             If latest IsNot Nothing AndAlso latest.TotalSize > 0 Then latestText &= $"  [{WebHelper.FormatBytes(latest.TotalSize)}]"
-            Dim item As New ListViewItem(c.DisplayName) With {.Tag = c, .Checked = check}
+            Dim item As New ListViewItem(c.DisplayName) With {.Tag = c}
             item.SubItems.Add(If(c.InstalledVersion(), "—"))
             item.SubItems.Add(latestText)
             item.SubItems.Add(status)
-            item.ToolTipText = c.Source
             If (Not c.IsInstalled() AndAlso c.IsRequired()) OrElse err IsNot Nothing Then item.ForeColor = Theme.Current.Err
             If status = Loc.Tr("Update available") Then item.ForeColor = Theme.Current.Warn
             If status = Loc.Tr("Up to date") Then item.ForeColor = Theme.Current.Ok
             lv.Items.Add(item)
+            item.Checked = check ' set after adding, so Windows keeps it on this row
         Next
-        lv.ShowItemToolTips = True
         lv.EndUpdate()
+        lv.Invalidate()
         UpdateSelectionSize()
+    End Sub
+
+    Private Sub DrawComponentCell(sender As Object, e As DrawListViewSubItemEventArgs)
+        Dim pal = Theme.Current
+        Dim g = e.Graphics
+        Using b As New SolidBrush(If(e.Item.Selected, pal.Selected, lv.BackColor))
+            g.FillRectangle(b, e.Bounds)
+        End Using
+        Dim r = e.Bounds
+        If e.ColumnIndex = 0 Then
+            Dim state = If(e.Item.Checked, VisualStyles.CheckBoxState.CheckedNormal, VisualStyles.CheckBoxState.UncheckedNormal)
+            Dim glyph = CheckBoxRenderer.GetGlyphSize(g, state)
+            CheckBoxRenderer.DrawCheckBox(g, New Point(r.X + 4, r.Y + (r.Height - glyph.Height) \ 2), state)
+            r = New Rectangle(r.X + glyph.Width + 8, r.Y, r.Width - glyph.Width - 8, r.Height)
+        Else
+            r.Inflate(-4, 0)
+        End If
+        Dim fore = If(e.Item.Selected AndAlso pal.IsDark, Color.White, e.Item.ForeColor)
+        TextRenderer.DrawText(g, If(e.ColumnIndex = 0, e.Item.Text, e.SubItem.Text), lv.Font, r, fore,
+                              TextFormatFlags.VerticalCenter Or TextFormatFlags.Left Or TextFormatFlags.EndEllipsis Or TextFormatFlags.NoPrefix)
     End Sub
 
     Private Sub UpdateSelectionSize()
