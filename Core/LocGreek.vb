@@ -1,6 +1,8 @@
 ''' <summary>Greek interface texts. Key = English text exactly as written in the code (with {0} placeholders).</summary>
 Friend NotInheritable Class GreekStrings
     Public Shared ReadOnly Map As New Dictionary(Of String, String)(StringComparer.Ordinal) From {
+        {"These are already up to date:", "Αυτά είναι ήδη ενημερωμένα:"},
+        {"Download them again anyway (only needed to repair a broken installation)?", "Να κατέβουν ξανά παρ' όλα αυτά (χρειάζεται μόνο για επισκευή χαλασμένης εγκατάστασης);"},
         {"Write a log file (for troubleshooting; at most about 10 MB)", "Καταγραφή σε αρχείο log (για διάγνωση προβλημάτων· έως περίπου 10 MB)"},
         {"{0} part(s) moved separately", "{0} τμήματα μετακινήθηκαν χωριστά"},
         {"Translate subtitles", "Μετάφραση υποτίτλων"},

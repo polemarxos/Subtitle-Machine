@@ -9,6 +9,7 @@ Public Class ComponentsForm
 
     Private ReadOnly _settings As AppSettings
     Private ReadOnly _autoInstall As Boolean
+    Private _ignoreCheck As Boolean
     Private _components As List(Of ToolComponent)
     Private ReadOnly _latest As New Dictionary(Of String, RemoteVersion)
     Private ReadOnly _errors As New Dictionary(Of String, String)
@@ -179,8 +180,12 @@ Public Class ComponentsForm
         AddHandler lv.DrawItem, Sub(s, e) e.DrawDefault = True
         AddHandler lv.DrawSubItem, Sub(s, e) e.DrawDefault = True
         ' While downloading the list stays readable but the ticks cannot be changed.
+        ' Windows toggles a row's tick on double-click, which ticked components by accident.
+        ' Only a click on the box itself (or the space bar) changes it.
+        AddHandler lv.MouseDown, Sub(s, e) _ignoreCheck = e.Clicks > 1
+        AddHandler lv.MouseUp, Sub(s, e) _ignoreCheck = False
         AddHandler lv.ItemCheck, Sub(s, e)
-                                     If _cts IsNot Nothing Then e.NewValue = e.CurrentValue
+                                     If _cts IsNot Nothing OrElse _ignoreCheck Then e.NewValue = e.CurrentValue
                                  End Sub
 
         ' Scale positions with Windows display scaling (125 %, 150 % …).
@@ -439,6 +444,23 @@ Public Class ComponentsForm
     Private Async Function InstallSelectedAsync() As Task
         If _cts IsNot Nothing Then Return
         Dim selected = lv.Items.Cast(Of ListViewItem)().Where(Function(i) i.Checked).Select(Function(i) DirectCast(i.Tag, ToolComponent)).ToList()
+        ' A ticked component that is already up to date would be downloaded again (gigabytes for a model): ask first.
+        Dim current = selected.Where(Function(c)
+                                         Dim rv As RemoteVersion = Nothing
+                                         Return c.IsInstalled() AndAlso _latest.TryGetValue(c.Id, rv) AndAlso rv IsNot Nothing AndAlso Not c.NeedsInstallOrUpdate(rv)
+                                     End Function).ToList()
+        If current.Count > 0 Then
+            Dim answer = MessageBox.Show(Me, Loc.Tr("These are already up to date:") & vbCrLf & String.Join(vbCrLf, current.Select(Function(c) "  • " & c.DisplayName)) & vbCrLf & vbCrLf &
+                                         Loc.Tr("Download them again anyway (only needed to repair a broken installation)?"),
+                                         Loc.Tr("Components & settings"), MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2)
+            If answer = DialogResult.Cancel Then Return
+            If answer = DialogResult.No Then
+                selected = selected.Except(current).ToList()
+                For Each it As ListViewItem In lv.Items
+                    If current.Contains(DirectCast(it.Tag, ToolComponent)) Then it.Checked = False
+                Next
+            End If
+        End If
         If selected.Count = 0 Then
             lblStatus.Text = Loc.Tr("Nothing selected.")
             Return
