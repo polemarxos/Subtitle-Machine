@@ -47,7 +47,7 @@ From [Releases](../../releases):
 
 Each edition updates itself with the newest file of the same edition.
 
-**"Windows protected your PC"?** Windows SmartScreen warns about new programs downloaded with a browser. Click *More info → Run anyway* (once), or right-click the exe → *Properties* → tick *Unblock*. Updates installed by the app itself are not affected. See the [Code signing policy](#code-signing-policy).
+**"Windows protected your PC"?** Windows SmartScreen warns about new programs downloaded with a browser. Click *More info → Run anyway* (once), or right-click the exe → *Properties* → tick *Unblock*. Updates installed by the app itself are not affected.
 
 ## Components (downloaded automatically)
 
@@ -135,7 +135,7 @@ Or open `Subtitle Machine.slnx` in Visual Studio 2026.
 ## Releasing
 
 Push a tag like `v1.3.0` (or run the workflow with *create release*). GitHub Actions runs the tests, builds both exes and creates the release.
-When SignPath is set up (repository variables `SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG`, `SIGNPATH_SIGNING_POLICY_SLUG` and secret `SIGNPATH_API_TOKEN`), the exes are signed first – the release waits until the signing request is approved on SignPath (up to 2 hours).
+The exes are not code-signed yet. The workflow contains an optional SignPath signing step that is skipped until the repository variables `SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG`, `SIGNPATH_SIGNING_POLICY_SLUG` and the secret `SIGNPATH_API_TOKEN` exist.
 Running copies find it on their next start, download it in the background, and install it when closed (or immediately with *Restart now*).
 
 > Self-update reads the GitHub Releases without logging in, so **the repository must be public**. For a private repository the update check simply finds nothing.
@@ -154,23 +154,6 @@ The app connects to the internet only to download and update its own parts:
 | Download a spell-check dictionary | raw.githubusercontent.com (LibreOffice dictionaries) | first time the editor checks a language | *Spell check* checkbox in the subtitle editor |
 
 These requests contain only what any download does (your IP address and the file asked for); they are subject to the privacy policies of [GitHub](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement), [Hugging Face](https://huggingface.co/privacy) and [gyan.dev](https://www.gyan.dev/). The optional log file stays on your PC.
-
-## Code signing policy
-
-Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
-
-- Only the two release files built by this repository's [GitHub Actions workflow](.github/workflows/build.yml) from the source code in this repository are signed: `SubtitleMachine.exe` and `SubtitleMachine-standalone.exe`.
-- Third-party programs the app downloads at runtime (FFmpeg, whisper.cpp, llama.cpp) are not part of this project and are not signed by it.
-- Every release is approved manually before it is signed.
-
-**Team roles**
-
-| Role | Members |
-|---|---|
-| Committers and reviewers | [polemarxos](https://github.com/polemarxos) |
-| Approvers | [polemarxos](https://github.com/polemarxos) |
-
-All team members use multi-factor authentication for GitHub and SignPath. See also [Privacy](#privacy).
 
 ## Third-party licences
 

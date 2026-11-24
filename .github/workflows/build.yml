@@ -70,7 +70,7 @@ jobs:
           name: SubtitleMachine
           path: dist/*.exe
 
-      # Code signing (SignPath Foundation, free for open source) – only for releases, and only once the
+      # Optional code signing with SignPath – only for releases, and only once the
       # repository variables / secret below exist. Each signing request is approved manually on SignPath.
       - name: Sign with SignPath
         id: sign
@@ -116,4 +116,4 @@ jobs:
 
             FFmpeg, Whisper, llama.cpp and the TranslateGemma model are downloaded by the app on first start.
 
-            [Code signing policy](https://github.com/polemarxos/Subtitle-Machine#code-signing-policy) · [Privacy](https://github.com/polemarxos/Subtitle-Machine#privacy)
+            [Privacy](https://github.com/polemarxos/Subtitle-Machine#privacy)
